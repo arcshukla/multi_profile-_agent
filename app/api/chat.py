@@ -6,7 +6,7 @@ Configured via settings.CHAT_RATE_LIMIT (default "20/minute").
 """
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
 
-from app.core.constants import STATUS_ENABLED
+from app.core.constants import STATUS_ENABLED, STATUS_DISABLED, STATUS_SUSPENDED, STATUS_SOFT_DELETED, STATUS_DELETED
 from app.core.logging_config import get_logger
 from app.models.api_models import ChatRequest, ChatResponse
 from app.models.user_models import UserEntity
@@ -37,7 +37,13 @@ def _require_enabled_profile(slug: str) -> UserEntity:
     """FastAPI dependency: resolve slug → enabled UserEntity or raise HTTP error."""
     entry = profile_service.get_entry(slug)
     if not entry:
-        raise HTTPException(404, f"Profile '{slug}' not found")
+        raise HTTPException(404, "This profile does not exist. If you are a professional looking to create your own AI-powered career page, visit the platform to get started.")
+    if entry.status == STATUS_DISABLED:
+        raise HTTPException(503, "This profile is currently disabled.")
+    if entry.status == STATUS_SUSPENDED:
+        raise HTTPException(403, "This profile is not available.")
+    if entry.status in (STATUS_SOFT_DELETED, STATUS_DELETED):
+        raise HTTPException(410, "This profile is no longer available.")
     if entry.status != STATUS_ENABLED:
         raise HTTPException(403, f"Profile '{slug}' is not active")
     return entry

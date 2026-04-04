@@ -52,6 +52,7 @@ def get_profile(slug: str):
 
 @router.patch("/{slug}/status")
 def update_status(slug: str, status: str):
+    """Update profile status. Admin may set: enabled, disabled, suspended, soft_deleted."""
     try:
         result = profile_service.update_status(slug, status)
         if not result:

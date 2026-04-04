@@ -9,7 +9,7 @@ All file I/O is redirected to tmp_path via the conftest isolate_data_dirs fixtur
 
 import pytest
 
-from app.core.constants import STATUS_ENABLED, STATUS_DISABLED, STATUS_DELETED
+from app.core.constants import STATUS_ENABLED, STATUS_DISABLED, STATUS_DELETED, STATUS_SUSPENDED, STATUS_SOFT_DELETED
 from app.services.user_service import UserService
 
 
@@ -72,12 +72,17 @@ def test_update_status_disabled(svc, isolate_data_dirs):
     assert user.status == STATUS_DISABLED
 
 
-def test_update_status_deleted(svc, isolate_data_dirs):
+def test_update_status_deleted_migrates_to_soft_deleted(svc, isolate_data_dirs):
+    """
+    Writing the legacy STATUS_DELETED ('deleted') is allowed by update_status,
+    but it is immediately migrated to 'soft_deleted' by _load() on next read.
+    """
     svc.add_user(email="d@example.com", name="D", slug="d-slug", status=STATUS_ENABLED)
     ok, _ = svc.update_status("d-slug", STATUS_DELETED)
     assert ok is True
     user = svc.get_user_by_slug("d-slug")
-    assert user.status == STATUS_DELETED
+    # Migration converts 'deleted' → 'soft_deleted' on read-back
+    assert user.status == STATUS_SOFT_DELETED
 
 
 def test_update_status_missing_slug_fails(svc, isolate_data_dirs):
@@ -134,6 +139,66 @@ def test_resolve_session_unknown_returns_none(svc, isolate_data_dirs, monkeypatc
     monkeypatch.setattr(settings, "ADMIN_EMAILS", [])
     result = svc.resolve_session("nobody@example.com", "Nobody")
     assert result is None
+
+
+# ── New status values ─────────────────────────────────────────────────────────
+
+def test_update_status_suspended(svc, isolate_data_dirs):
+    svc.add_user(email="sus@example.com", name="Sus", slug="sus", status=STATUS_ENABLED)
+    ok, _ = svc.update_status("sus", STATUS_SUSPENDED)
+    assert ok is True
+    assert svc.get_user_by_slug("sus").status == STATUS_SUSPENDED
+
+
+def test_update_status_soft_deleted(svc, isolate_data_dirs):
+    svc.add_user(email="sd@example.com", name="Sd", slug="sd", status=STATUS_ENABLED)
+    ok, _ = svc.update_status("sd", STATUS_SOFT_DELETED)
+    assert ok is True
+    assert svc.get_user_by_slug("sd").status == STATUS_SOFT_DELETED
+
+
+def test_legacy_deleted_migration(svc, isolate_data_dirs):
+    """
+    When users.json contains a legacy 'deleted' status, _load() must migrate
+    it to 'soft_deleted' automatically.
+    """
+    import json
+    import app.services.user_service as us_mod
+
+    # Write a users.json file with the legacy 'deleted' status value
+    users_file = us_mod._USERS_FILE
+    users_file.write_text(json.dumps({
+        "legacy@example.com": {
+            "slug": "legacy-slug",
+            "name": "Legacy",
+            "status": "deleted",  # old value
+            "created_at": "2025-01-01T00:00:00Z",
+        }
+    }), encoding="utf-8")
+
+    # Create fresh service so cache is empty
+    fresh = UserService()
+    user = fresh.get_user_by_slug("legacy-slug")
+    assert user is not None
+    assert user.status == STATUS_SOFT_DELETED, "legacy 'deleted' must be normalised to 'soft_deleted'"
+
+    # Confirm the file on disk was also updated
+    on_disk = json.loads(users_file.read_text(encoding="utf-8"))
+    assert on_disk["legacy@example.com"]["status"] == STATUS_SOFT_DELETED
+
+
+def test_re_registration_blocked_for_suspended(svc, isolate_data_dirs, monkeypatch):
+    """
+    An email already in users.json cannot create a new profile regardless of status.
+    resolve_session returns their existing record even when suspended.
+    """
+    from app.core.config import settings
+    monkeypatch.setattr(settings, "ADMIN_EMAILS", [])
+    svc.add_user(email="blocked@example.com", name="B", slug="blocked", status=STATUS_SUSPENDED)
+    result = svc.resolve_session("blocked@example.com", "B")
+    # Must return their existing record — not None — so they cannot register fresh
+    assert result is not None
+    assert result["slug"] == "blocked"
 
 
 # ── Backup rotation ───────────────────────────────────────────────────────────

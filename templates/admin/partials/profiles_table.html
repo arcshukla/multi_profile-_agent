@@ -20,6 +20,7 @@
       <th class="text-left px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Name</th>
       <th class="text-left px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Slug</th>
       <th class="text-left px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Status</th>
+      <th class="text-left px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Created</th>
       <th class="text-left px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Last Indexed</th>
       <th class="text-left px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Docs</th>
       <th class="px-5 py-3"></th>
@@ -54,11 +55,22 @@
         <span class="inline-flex items-center gap-1 bg-gray-100 text-gray-600 text-xs font-medium px-2 py-0.5 rounded-full">
           <span class="w-1.5 h-1.5 rounded-full bg-gray-400"></span>Disabled
         </span>
-        {% else %}
+        {% elif p.status == "suspended" %}
+        <span class="inline-flex items-center gap-1 bg-amber-50 text-amber-700 text-xs font-medium px-2 py-0.5 rounded-full">
+          <span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span>Suspended
+        </span>
+        {% elif p.status == "soft_deleted" %}
         <span class="inline-flex items-center gap-1 bg-red-50 text-red-600 text-xs font-medium px-2 py-0.5 rounded-full">
-          <span class="w-1.5 h-1.5 rounded-full bg-red-400"></span>Deleted
+          <span class="w-1.5 h-1.5 rounded-full bg-red-400"></span>Soft Deleted
+        </span>
+        {% else %}
+        <span class="inline-flex items-center gap-1 bg-gray-100 text-gray-500 text-xs font-medium px-2 py-0.5 rounded-full">
+          <span class="w-1.5 h-1.5 rounded-full bg-gray-400"></span>{{ p.status }}
         </span>
         {% endif %}
+      </td>
+      <td class="px-5 py-3.5 text-gray-500 text-xs">
+        {{ (p.created_at[:10]) if p.created_at else "—" }}
       </td>
       <td class="px-5 py-3.5 text-gray-500 text-xs">
         {{ (p.last_indexed[:16] | replace("T", " ")) ~ " UTC" if p.last_indexed else "—" }}

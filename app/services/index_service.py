@@ -215,6 +215,10 @@ class IndexService:
     def is_indexing(self, slug: str) -> bool:
         return slug in _currently_indexing
 
+    def active_slugs(self) -> list[str]:
+        """Return slugs currently being indexed (running or queued)."""
+        return sorted(_currently_indexing | _startup_pending)
+
     # ── Status ────────────────────────────────────────────────────────────────
 
     def get_status(self, slug: str) -> dict:

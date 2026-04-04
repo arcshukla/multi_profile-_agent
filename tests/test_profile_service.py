@@ -4,14 +4,14 @@ test_profile_service.py
 Unit tests for ProfileService.
 
 Covers: create, get, list, status updates, soft-delete, restore, hard-delete,
-get_display_name.
+get_display_name, all 5 status states.
 
 External dependencies (ChromaDB, HFSync, token_service) are monkeypatched.
 """
 
 import pytest
 
-from app.core.constants import STATUS_ENABLED, STATUS_DISABLED, STATUS_DELETED
+from app.core.constants import STATUS_ENABLED, STATUS_DISABLED, STATUS_DELETED, STATUS_SUSPENDED, STATUS_SOFT_DELETED
 from app.models.profile_models import CreateProfileRequest
 from app.services.profile_service import ProfileService
 
@@ -125,17 +125,33 @@ def test_update_status_invalid_raises(svc, isolate_data_dirs):
         svc.update_status("jay", "invalid-status")
 
 
+def test_update_status_suspended(svc, isolate_data_dirs):
+    svc.create_profile(_make_request("Kelly"))
+    updated = svc.update_status("kelly", STATUS_SUSPENDED)
+    assert updated is not None
+    assert updated.status == STATUS_SUSPENDED
+
+
+def test_update_status_soft_deleted(svc, isolate_data_dirs):
+    svc.create_profile(_make_request("Liam"))
+    updated = svc.update_status("liam", STATUS_SOFT_DELETED)
+    assert updated is not None
+    assert updated.status == STATUS_SOFT_DELETED
+
+
 # ── Soft-delete & restore ─────────────────────────────────────────────────────
 
 def test_soft_delete(svc, isolate_data_dirs):
+    """soft_delete() sets status to soft_deleted (not the legacy 'deleted')."""
     svc.create_profile(_make_request("Kim"))
     ok = svc.soft_delete("kim")
     assert ok is True
     entry = svc.get_entry("kim")
-    assert entry.status == STATUS_DELETED
+    assert entry.status == STATUS_SOFT_DELETED
 
 
-def test_restore_deleted(svc, isolate_data_dirs):
+def test_restore_soft_deleted(svc, isolate_data_dirs):
+    """restore_deleted() accepts soft_deleted status and re-enables profile."""
     svc.create_profile(_make_request("Lee"))
     svc.soft_delete("lee")
     restored = svc.restore_deleted("lee")
@@ -143,9 +159,35 @@ def test_restore_deleted(svc, isolate_data_dirs):
     assert restored.status == STATUS_ENABLED
 
 
+def test_restore_legacy_deleted(svc, isolate_data_dirs):
+    """
+    restore_deleted() accepts the legacy 'deleted' value.
+    Note: the migration auto-converts 'deleted' → 'soft_deleted' on every load,
+    so get_entry() will return 'soft_deleted' even after writing 'deleted'.
+    restore_deleted() handles both soft_deleted and deleted.
+    """
+    svc.create_profile(_make_request("Leo"))
+    from app.services.user_service import user_service
+    user_service.update_status("leo", STATUS_DELETED)
+    # Migration converts 'deleted' → 'soft_deleted' on load
+    entry = svc.get_entry("leo")
+    assert entry.status == STATUS_SOFT_DELETED
+    restored = svc.restore_deleted("leo")
+    assert restored is not None
+    assert restored.status == STATUS_ENABLED
+
+
 def test_restore_non_deleted_returns_none(svc, isolate_data_dirs):
     svc.create_profile(_make_request("Mia"))
     result = svc.restore_deleted("mia")  # not deleted — should fail
+    assert result is None
+
+
+def test_restore_suspended_returns_none(svc, isolate_data_dirs):
+    """restore_deleted() must NOT restore suspended profiles — that's admin-only."""
+    svc.create_profile(_make_request("Max"))
+    svc.update_status("max", STATUS_SUSPENDED)
+    result = svc.restore_deleted("max")
     assert result is None
 
 

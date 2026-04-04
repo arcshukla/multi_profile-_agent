@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+{% block title %}Profile Not Found — ProfileSpark{% endblock %}
+
+{% block body %}
+<div class="min-h-screen bg-gray-50 flex flex-col">
+
+  <!-- ── Page content ────────────────────────────────────────────────────────── -->
+  <div class="flex-1 flex items-center justify-center px-4 py-12">
+    <div class="max-w-4xl w-full bg-white shadow-sm rounded-2xl overflow-hidden">
+
+      <!-- Header — matches chat page brand header -->
+      <div class="border-b border-gray-200 px-6 py-4 flex items-center justify-between">
+        <div class="flex items-center gap-3">
+          <div class="w-11 h-11 rounded-full bg-indigo-50 flex items-center justify-center flex-shrink-0">
+            <svg class="w-5 h-5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
+            </svg>
+          </div>
+          <div>
+            <p class="font-semibold text-gray-700 text-sm">Profile Not Found</p>
+            <p class="text-xs text-gray-400 mt-0.5">This page doesn't exist</p>
+          </div>
+        </div>
+
+        <!-- ProfileSpark brand — right side -->
+        <div class="flex-shrink-0 flex flex-col items-center justify-center select-none" style="gap:4px;" title="Built on ProfileSpark">
+          <div class="flex items-center" style="gap:8px;">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style="flex-shrink:0;">
+              <defs>
+                <linearGradient id="ps-grad-nf" x1="0" y1="0" x2="1" y2="1">
+                  <stop offset="0%" stop-color="#6366f1"/>
+                  <stop offset="100%" stop-color="#a855f7"/>
+                </linearGradient>
+              </defs>
+              <path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 17l-6.2 4.3 2.4-7.4L2 9.4h7.6L12 2z" fill="url(#ps-grad-nf)"/>
+            </svg>
+            <span style="font-size:17px; font-weight:800; letter-spacing:-0.02em; line-height:1; background:linear-gradient(135deg,#6366f1,#a855f7); -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text;">
+              ProfileSpark
+            </span>
+          </div>
+          <span style="font-size:10px; font-weight:500; letter-spacing:0.15em; text-transform:uppercase; color:#9ca3af; line-height:1;">
+            Career Intelligence
+          </span>
+        </div>
+      </div>
+
+      <!-- Body -->
+      <div class="px-6 py-16 text-center">
+        <p class="text-gray-500 text-sm leading-relaxed max-w-sm mx-auto mb-8">
+          This profile page doesn't exist yet.
+        </p>
+
+        <!-- Value proposition -->
+        <div class="bg-indigo-50 border border-indigo-100 rounded-xl px-6 py-5 max-w-sm mx-auto mb-8 text-left">
+          <p class="text-indigo-800 font-semibold text-sm mb-1">Are you a professional?</p>
+          <p class="text-indigo-600 text-sm leading-relaxed">
+            Create your own AI-powered career page. Let visitors ask questions about your experience,
+            skills, and achievements — answered instantly, 24/7.
+          </p>
+        </div>
+
+        <a href="{{ register_url }}"
+          class="inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold px-5 py-2.5 rounded-xl transition-colors shadow-sm">
+          Create your profile
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8l4 4m0 0l-4 4m4-4H3"/>
+          </svg>
+        </a>
+
+        <div class="mt-6">
+          <a href="/explore"
+            class="inline-flex items-center gap-2 text-sm font-medium text-gray-400 hover:text-indigo-600 transition-colors">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+            </svg>
+            or explore existing profiles
+          </a>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Footer -->
+  {% include "partials/footer.html" %}
+
+</div>
+{% endblock %}

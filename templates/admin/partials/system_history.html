@@ -1,15 +1,30 @@
 <!-- System: Index History partial -->
-<div class="space-y-4">
+<div class="space-y-4"
+  {% if active %}
+  id="history-panel"
+  hx-get="/admin/system/history{% if slug %}?slug={{ slug }}{% endif %}"
+  hx-target="#history-panel"
+  hx-swap="outerHTML"
+  hx-trigger="every 4s"
+  {% endif %}
+>
   <div class="flex items-center justify-between">
-    <h2 class="text-sm font-semibold text-gray-700">Indexing History</h2>
+    <div class="flex items-center gap-3">
+      <h2 class="text-sm font-semibold text-gray-700">Indexing History</h2>
+      {% if active %}
+      <span class="inline-flex items-center gap-1.5 bg-blue-50 text-blue-700 text-xs font-medium px-2.5 py-1 rounded-full border border-blue-100">
+        <span class="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse"></span>
+        {{ active | length }} job{{ "s" if active | length != 1 else "" }} running
+      </span>
+      {% endif %}
+    </div>
     <form hx-get="/admin/system/history" hx-target="#sys-content" hx-swap="innerHTML" class="flex gap-2">
-      <input name="slug" placeholder="Filter by slug…"
+      <input name="slug" value="{{ slug or '' }}" placeholder="Filter by slug…"
         class="text-sm border border-gray-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
       <button type="submit" class="text-sm font-medium bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-1.5 rounded-lg transition-colors">Filter</button>
     </form>
   </div>
 
-  {% if history %}
   <div class="bg-white rounded-xl border border-gray-200 overflow-hidden">
     <table class="w-full text-sm">
       <thead class="bg-gray-50 border-b border-gray-100">
@@ -23,6 +38,26 @@
         </tr>
       </thead>
       <tbody class="divide-y divide-gray-100">
+
+        <!-- Live rows — shown at the top while indexing is in progress -->
+        {% for slug_active in active %}
+        {% if not slug or slug_active == slug %}
+        <tr class="bg-blue-50/40">
+          <td class="px-5 py-3 text-gray-400 font-mono text-xs whitespace-nowrap">now</td>
+          <td class="px-5 py-3 font-mono text-xs text-gray-800">{{ slug_active }}</td>
+          <td class="px-5 py-3">
+            <span class="inline-flex items-center gap-1.5 bg-blue-100 text-blue-700 text-xs font-medium px-2 py-0.5 rounded-full">
+              <span class="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse"></span>Indexing…
+            </span>
+          </td>
+          <td class="px-5 py-3 text-gray-400 text-xs">—</td>
+          <td class="px-5 py-3 text-gray-400 text-xs">—</td>
+          <td class="px-5 py-3 text-gray-400 text-xs">—</td>
+        </tr>
+        {% endif %}
+        {% endfor %}
+
+        <!-- Completed history -->
         {% for entry in history %}
         <tr class="hover:bg-gray-50 transition-colors">
           <td class="px-5 py-3 text-gray-500 font-mono text-xs whitespace-nowrap">
@@ -38,23 +73,31 @@
             <span class="inline-flex items-center gap-1 bg-red-50 text-red-600 text-xs font-medium px-2 py-0.5 rounded-full">
               <span class="w-1.5 h-1.5 rounded-full bg-red-500"></span>Failed
             </span>
+            {% elif entry.status == "purged" %}
+            <span class="inline-flex items-center gap-1 bg-gray-100 text-gray-500 text-xs font-medium px-2 py-0.5 rounded-full">
+              <span class="w-1.5 h-1.5 rounded-full bg-gray-400"></span>Purged
+            </span>
             {% else %}
-            <span class="inline-flex items-center gap-1 bg-blue-50 text-blue-600 text-xs font-medium px-2 py-0.5 rounded-full">
-              <span class="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse"></span>Running
+            <span class="inline-flex items-center gap-1 bg-gray-100 text-gray-500 text-xs font-medium px-2 py-0.5 rounded-full">
+              <span class="w-1.5 h-1.5 rounded-full bg-gray-400"></span>{{ entry.status }}
             </span>
             {% endif %}
           </td>
-          <td class="px-5 py-3 text-gray-500 text-xs">{{ entry.document_count }}</td>
-          <td class="px-5 py-3 text-gray-500 text-xs">{{ entry.duration_seconds }}s</td>
-          <td class="px-5 py-3 text-red-500 text-xs max-w-xs truncate">{{ entry.error | default("—") }}</td>
+          <td class="px-5 py-3 text-gray-500 text-xs">{{ entry.document_count if entry.document_count is defined else "—" }}</td>
+          <td class="px-5 py-3 text-gray-500 text-xs">{{ entry.duration_seconds ~ "s" if entry.duration_seconds is defined else "—" }}</td>
+          <td class="px-5 py-3 text-red-500 text-xs max-w-xs truncate" title="{{ entry.error | default('') }}">{{ entry.error | default("—") }}</td>
         </tr>
         {% endfor %}
+
+        {% if not active and not history %}
+        <tr>
+          <td colspan="6" class="px-5 py-10 text-center text-gray-400 text-sm">
+            No indexing history yet. Index a profile to see events here.
+          </td>
+        </tr>
+        {% endif %}
+
       </tbody>
     </table>
   </div>
-  {% else %}
-  <div class="bg-white rounded-xl border border-gray-200 p-10 text-center">
-    <p class="text-gray-400 text-sm">No indexing history yet. Index a profile to see events here.</p>
-  </div>
-  {% endif %}
 </div>

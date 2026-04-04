@@ -16,7 +16,7 @@ Rules:
 from pathlib import Path
 from typing import Optional
 
-from app.core.constants import STATUS_ENABLED, STATUS_DISABLED, STATUS_DELETED
+from app.core.constants import STATUS_ENABLED, STATUS_DISABLED, STATUS_DELETED, STATUS_SUSPENDED, STATUS_SOFT_DELETED
 from app.core.logging_config import get_logger, get_profile_logger
 from app.models.profile_models import CreateProfileRequest, ProfileResponse
 from app.models.user_models import UserEntity
@@ -111,9 +111,10 @@ class ProfileService:
         return self._enrich(user_service.get_user_by_slug(slug))
 
     def update_status(self, slug: str, status: str) -> Optional[ProfileResponse]:
-        """Enable or disable a profile."""
-        if status not in (STATUS_ENABLED, STATUS_DISABLED):
-            raise ValueError(f"Invalid status: {status}")
+        """Update profile status. Valid values: enabled, disabled, suspended, soft_deleted."""
+        valid = (STATUS_ENABLED, STATUS_DISABLED, STATUS_SUSPENDED, STATUS_SOFT_DELETED)
+        if status not in valid:
+            raise ValueError(f"Invalid status: {status}. Must be one of: {', '.join(valid)}")
         ok, err = user_service.update_status(slug, status)
         if not ok:
             return None
@@ -121,8 +122,8 @@ class ProfileService:
         return self.get_profile(slug)
 
     def soft_delete(self, slug: str) -> bool:
-        """Mark profile as deleted (keeps files, removes from active list)."""
-        ok, _ = user_service.update_status(slug, STATUS_DELETED)
+        """Mark profile as soft-deleted (keeps files; owner portal and chat blocked)."""
+        ok, _ = user_service.update_status(slug, STATUS_SOFT_DELETED)
         if ok:
             get_profile_logger(slug).info("Profile soft-deleted")
         return ok
@@ -210,12 +211,12 @@ class ProfileService:
             logger.error("Failed to archive billing data for '%s': %s", slug, e)
 
     def restore_deleted(self, slug: str) -> Optional[ProfileResponse]:
-        """Re-enable a soft-deleted profile."""
+        """Re-enable a soft-deleted profile. Accepts both 'soft_deleted' and legacy 'deleted'."""
         entry = user_service.get_user_by_slug(slug)
-        if not entry or entry.status != STATUS_DELETED:
+        if not entry or entry.status not in (STATUS_SOFT_DELETED, STATUS_DELETED):
             return None
         user_service.update_status(slug, STATUS_ENABLED)
-        get_profile_logger(slug).info("Profile restored from deleted state")
+        get_profile_logger(slug).info("Profile restored from soft-deleted state")
         return self.get_profile(slug)
 
     # ── Enrichment ────────────────────────────────────────────────────────────
@@ -245,6 +246,7 @@ class ProfileService:
             document_count=status_info.get("document_count", 0),
             chunk_count=status_info.get("chunk_count", 0),
             last_indexed=status_info.get("last_indexed"),
+            created_at=owner.created_at,
         )
 
 

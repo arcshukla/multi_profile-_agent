@@ -26,10 +26,12 @@ MAX_FILE_SIZE_OTHER = 1 * 1024 * 1024   # 1 MB  — TXT, CSV, DOCX, MD
 MAX_DOCS_PER_PROFILE = 3                 # max files per profile
 
 # ── Profile statuses ─────────────────────────────────────────────────────────
-STATUS_ENABLED  = "enabled"
-STATUS_DISABLED = "disabled"
-STATUS_DELETED  = "deleted"
-STATUS_INDEXING = "indexing"
+STATUS_ENABLED      = "enabled"       # chat + owner portal allowed
+STATUS_DISABLED     = "disabled"      # no chat; owner portal allowed
+STATUS_SUSPENDED    = "suspended"     # admin-only; no chat, no owner portal
+STATUS_SOFT_DELETED = "soft_deleted"  # owner/admin; no chat, no owner portal; restorable
+STATUS_DELETED      = "deleted"       # legacy alias — normalised to soft_deleted on load
+STATUS_INDEXING     = "indexing"      # not a profile status; index-operation sentinel
 
 # ── Index history entry statuses ─────────────────────────────────────────────
 INDEX_STATUS_SUCCESS = "success"

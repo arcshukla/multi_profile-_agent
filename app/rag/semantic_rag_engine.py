@@ -73,15 +73,41 @@ class SemanticRAGEngine:
             path=db_path,
             settings=ChromaSettings(anonymized_telemetry=False),
         )
-        self.collection = self._client.get_or_create_collection(
-            name=collection_name,
-            metadata={"hnsw:space": "cosine"},
-            embedding_function=_EMBEDDING_FN,
-        )
+        self.collection = self._get_or_create_collection(collection_name)
         logger.info(
             "SemanticRAGEngine ready | path='%s' | collection='%s' | %d chunks | topics=%s",
             db_path, collection_name, self.collection.count(), topic_labels,
         )
+
+    def _get_or_create_collection(self, collection_name: str):
+        """
+        Get or create the ChromaDB collection.
+
+        If the persisted collection was created with a different embedding function
+        (e.g. upgraded ChromaDB defaulted to 'default' on an older collection),
+        the collection is wiped and recreated so re-ingestion starts clean.
+        """
+        try:
+            return self._client.get_or_create_collection(
+                name=collection_name,
+                metadata={"hnsw:space": "cosine"},
+                embedding_function=_EMBEDDING_FN,
+            )
+        except ValueError as exc:
+            msg = str(exc).lower()
+            if "embedding function" in msg and ("conflict" in msg or "already exists" in msg):
+                logger.warning(
+                    "Embedding function conflict on collection '%s' — wiping and recreating. "
+                    "Re-indexing required. Detail: %s",
+                    collection_name, exc,
+                )
+                self._client.delete_collection(collection_name)
+                return self._client.get_or_create_collection(
+                    name=collection_name,
+                    metadata={"hnsw:space": "cosine"},
+                    embedding_function=_EMBEDDING_FN,
+                )
+            raise
 
     def close(self) -> None:
         """Release the ChromaDB connection. Call before wiping the DB directory."""
@@ -274,6 +300,16 @@ class SemanticRAGEngine:
         except json.JSONDecodeError as e:
             logger.warning("LLM split JSON parse failed for %s: %s", source_name, e)
         except Exception as e:
+            try:
+                from openai import APIStatusError
+                if isinstance(e, APIStatusError) and e.status_code in (401, 402, 403, 429):
+                    logger.error(
+                        "Fatal API error during LLM split for %s (HTTP %d) — aborting indexing: %s",
+                        source_name, e.status_code, e,
+                    )
+                    raise
+            except ImportError:
+                pass
             logger.warning("LLM split failed for %s: %s", source_name, e, exc_info=True)
         return []
 

@@ -75,6 +75,16 @@ class UserService:
             except Exception as e:
                 logger.error("Failed to load %s: %s", path.name, e)
 
+        # One-time migration: rename legacy "deleted" → "soft_deleted"
+        # (current code uses STATUS_SOFT_DELETED; "deleted" was the old soft-delete value)
+        needs_save = any(rec.get("status") == "deleted" for rec in data.values())
+        if needs_save:
+            for rec in data.values():
+                if rec.get("status") == "deleted":
+                    rec["status"] = "soft_deleted"
+            logger.info("Migrated legacy 'deleted' status → 'soft_deleted' in users.json")
+            _USERS_FILE.write_text(json.dumps(data, indent=2), encoding="utf-8")
+
         self._cache = data
         self._slug_index = {
             rec["slug"]: email

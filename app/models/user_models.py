@@ -12,7 +12,7 @@ Field notes:
   - email      : Google login email — primary key in users.json
   - slug        : profile slug, always present for owners
   - name        : display name — single source of truth (shown in UI and emails)
-  - status      : enabled / disabled / deleted
+  - status      : enabled / disabled / suspended / soft_deleted
   - created_at  : ISO timestamp of when the record was created
 """
 

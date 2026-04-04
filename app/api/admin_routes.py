@@ -149,6 +149,21 @@ def admin_system(request: Request):
     })
 
 
+@router.get("/admin/analytics", response_class=HTMLResponse)
+def admin_analytics(request: Request):
+    from app.services import analytics_service
+    return _r(request, "admin/layout.html", {
+        "active_tab":           "analytics",
+        "tab_content_template": "admin/tab_analytics.html",
+        "current_user":         get_current_user(request),
+        "kpis":                 analytics_service.get_platform_kpis(days=30),
+        "profile_ranking":      analytics_service.get_profile_activity_ranking(days=30),
+        "content_gaps":         analytics_service.get_all_content_gaps(limit=15),
+        "platform_daily":       analytics_service.get_platform_daily(days=30),
+        "platform_tokens":      analytics_service.get_platform_token_burn(days=30),
+    })
+
+
 # ── HTMX: profiles table ─────────────────────────────────────────────────────
 
 @router.get("/admin/registry/profiles", response_class=HTMLResponse)
@@ -163,8 +178,6 @@ def htmx_profiles_table(
         name_filter=name or None,
         slug_filter=slug or None,
     )
-    if not status:
-        profiles = [p for p in profiles if p.status != "deleted"]
     return _r(request, "admin/partials/profiles_table.html", {"profiles": profiles})
 
 
@@ -184,7 +197,7 @@ async def htmx_create_profile(
     except ValueError as e:
         error_msg = str(e)
 
-    profiles = [p for p in profile_service.list_profiles() if p.status != "deleted"]
+    profiles = profile_service.list_profiles()
     response = _r(request, "admin/partials/profiles_table.html", {"profiles": profiles})
     if error_msg:
         response.headers["HX-Trigger"] = _json.dumps({"showToast": {"message": error_msg, "type": "error"}})
@@ -461,15 +474,17 @@ async def system_billing_confirm_donation(
 @router.get("/admin/system/history", response_class=HTMLResponse)
 def htmx_system_history(request: Request, slug: Optional[str] = None):
     history = index_service.get_history(slug=slug or None, limit=100)
+    active  = index_service.active_slugs()
     return _r(request, "admin/partials/system_history.html", {
         "history": history,
         "slug":    slug,
+        "active":  active,   # slugs currently indexing or queued
     })
 
 
 @router.get("/admin/system/deleted", response_class=HTMLResponse)
 def htmx_system_deleted(request: Request):
-    profiles = profile_service.list_profiles(status_filter="deleted")
+    profiles = profile_service.list_profiles(status_filter="soft_deleted")
     return _r(request, "admin/partials/system_deleted.html", {"profiles": profiles})
 
 
@@ -797,30 +812,25 @@ def htmx_tab_system(request: Request):
     return _r(request, "admin/tab_system.html", {})
 
 
-# ── Soft-delete alias (HTMX POST workaround) ──────────────────────────────────
-
-@router.post("/api/profiles/{slug}/soft-delete")
-def soft_delete_alias(slug: str):
-    ok = profile_service.soft_delete(slug)
-    if not ok:
-        raise HTTPException(404, "Profile not found")
-    return SuccessResponse(message=f"Profile '{slug}' soft-deleted")
-
-
 # ── Chat page ─────────────────────────────────────────────────────────────────
 
 @router.get("/chat/{slug}", response_class=HTMLResponse)
 def chat_page(request: Request, slug: str):
     from app.services.chat_service import chat_service
     from app.services.prompt_service import prompt_service as ps
+    from app.core.config import settings as _cfg
 
     profile = profile_service.get_profile(slug)
     if not profile:
-        raise HTTPException(status_code=404, detail="Profile not found")
+        resp = _r(request, "partials/profile_not_found.html", {
+            "register_url": f"{_cfg.APP_URL.rstrip('/')}/register",
+        })
+        resp.status_code = 404
+        return resp
 
     if profile.status != "enabled":
-        resp = _r(request, "partials/profile_disabled.html", {})
-        resp.status_code = 403
+        resp = _r(request, "partials/profile_disabled.html", {"status": profile.status})
+        resp.status_code = 410 if profile.status in ("soft_deleted", "deleted") else 403
         return resp
 
     fs = ProfileFileStorage(slug)

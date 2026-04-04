@@ -40,6 +40,7 @@ class ProfileResponse(BaseModel):
     document_count: int = 0
     chunk_count: int = 0
     last_indexed: Optional[str] = None   # ISO timestamp or None
+    created_at: Optional[str] = None     # ISO timestamp of owner record creation
 
 
 class ProfileListResponse(BaseModel):

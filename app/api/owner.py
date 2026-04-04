@@ -21,9 +21,10 @@ from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse, Stre
 from fastapi.templating import Jinja2Templates
 
 from app.core.config import TEMPLATES_DIR, settings
-from app.core.constants import ALLOWED_DOC_EXTENSIONS, MAX_FILE_SIZE_PDF, MAX_FILE_SIZE_OTHER, MAX_DOCS_PER_PROFILE
+from app.core.constants import ALLOWED_DOC_EXTENSIONS, MAX_FILE_SIZE_PDF, MAX_FILE_SIZE_OTHER, MAX_DOCS_PER_PROFILE, STATUS_SUSPENDED, STATUS_SOFT_DELETED, STATUS_DELETED
 from app.core.logging_config import get_logger
 from app.auth.dependencies import require_owner
+from app.services import analytics_service
 from app.services.billing_service import billing_service
 from app.services.index_service import index_service
 from app.services.preferences_service import preferences_service
@@ -51,10 +52,40 @@ def _slug(user: dict) -> str:
     return user.get("slug") or ""
 
 
+def _check_profile_status(request: Request, user: dict):
+    """
+    Return an HTML blocked-page response if the owner's profile status prevents
+    portal access (suspended or soft_deleted).  Returns None if access is allowed.
+    Admins without an owned profile (slug is None) are never blocked here.
+    """
+    slug = _slug(user)
+    if not slug:
+        return None
+    entry = profile_service.get_entry(slug)
+    if entry is None:
+        return None
+    if entry.status == STATUS_SUSPENDED:
+        return _r(request, "owner/partials/blocked.html", {
+            "user": user,
+            "reason": "suspended",
+            "support_email": settings.SUPPORT_EMAIL,
+        })
+    if entry.status in (STATUS_SOFT_DELETED, STATUS_DELETED):
+        return _r(request, "owner/partials/blocked.html", {
+            "user": user,
+            "reason": "soft_deleted",
+            "support_email": settings.SUPPORT_EMAIL,
+        })
+    return None
+
+
 # ── Dashboard ──────────────────────────────────────────────────────────────────
 
 @router.get("/dashboard", response_class=HTMLResponse)
 def dashboard(request: Request, user: dict = Depends(require_owner)):
+    blocked = _check_profile_status(request, user)
+    if blocked:
+        return blocked
     slug = _slug(user)
     return _r(request, "owner/dashboard.html", {
         "user":           user,
@@ -70,6 +101,9 @@ def dashboard(request: Request, user: dict = Depends(require_owner)):
 
 @router.get("/docs", response_class=HTMLResponse)
 def docs_page(request: Request, user: dict = Depends(require_owner)):
+    blocked = _check_profile_status(request, user)
+    if blocked:
+        return blocked
     slug = _slug(user)
     fs   = ProfileFileStorage(slug)
     docs = fs.list_documents()
@@ -143,6 +177,9 @@ async def docs_view(filename: str, user: dict = Depends(require_owner)):
 
 @router.get("/appearance", response_class=HTMLResponse)
 def appearance_page(request: Request, user: dict = Depends(require_owner)):
+    blocked = _check_profile_status(request, user)
+    if blocked:
+        return blocked
     slug      = _slug(user)
     fs        = ProfileFileStorage(slug)
     has_photo = fs.has_photo()
@@ -251,11 +288,20 @@ async def toggle_status(request: Request, status: str, user: dict = Depends(requ
 
 @router.get("/analytics", response_class=HTMLResponse)
 def analytics_page(request: Request, user: dict = Depends(require_owner)):
+    blocked = _check_profile_status(request, user)
+    if blocked:
+        return blocked
+    import json as _json
     slug   = _slug(user)
     events = ProfileFileStorage(slug).read_chat_events(limit=200)
     return _r(request, "owner/analytics.html", {
-        "user":   user,
-        "events": events,
+        "user":               user,
+        "events":             events,
+        "kpis":               analytics_service.get_owner_kpis(slug),
+        "daily_chart":        _json.dumps(analytics_service.get_daily_questions(slug, days=30)),
+        "token_chart":        _json.dumps(analytics_service.get_token_daily(slug, days=30)),
+        "content_gaps":       analytics_service.get_top_content_gaps(slug, limit=10),
+        "lead_chart":         _json.dumps(analytics_service.get_lead_timeline(slug, days=30)),
     })
 
 
@@ -318,6 +364,9 @@ def analytics_download(user: dict = Depends(require_owner)):
 
 @router.get("/ai", response_class=HTMLResponse)
 def ai_page(request: Request, user: dict = Depends(require_owner)):
+    blocked = _check_profile_status(request, user)
+    if blocked:
+        return blocked
     slug = _slug(user)
     return _r(request, "owner/ai.html", {
         "user":    user,
@@ -356,6 +405,9 @@ async def owner_force_index(background_tasks: BackgroundTasks, user: dict = Depe
 
 @router.get("/preferences", response_class=HTMLResponse)
 def preferences_page(request: Request, user: dict = Depends(require_owner)):
+    blocked = _check_profile_status(request, user)
+    if blocked:
+        return blocked
     slug  = _slug(user)
     prefs = preferences_service.get(slug)
     return _r(request, "owner/preferences.html", {
@@ -412,4 +464,27 @@ async def preferences_save(
         "saved":       error is None,
         "error":       error,
         "active_page": "preferences",
+    })
+
+
+# ── Close account (owner-initiated soft-delete) ───────────────────────────────
+
+@router.post("/close-account", response_class=HTMLResponse)
+async def close_account(request: Request, user: dict = Depends(require_owner)):
+    """
+    Owner requests soft-deletion of their own profile.
+    Sets status to 'soft_deleted' — blocks chat and owner portal.
+    Admin can restore or hard-delete from the registry.
+    """
+    slug = _slug(user)
+    if not slug:
+        return htmx_err("No profile associated with this account.")
+    ok = profile_service.soft_delete(slug)
+    if not ok:
+        return htmx_err("Could not close account. Please contact support.")
+    logger.info("Owner closed account: slug=%s email=%s", slug, user.get("email"))
+    return _r(request, "owner/partials/blocked.html", {
+        "user": user,
+        "reason": "soft_deleted",
+        "support_email": settings.SUPPORT_EMAIL,
     })

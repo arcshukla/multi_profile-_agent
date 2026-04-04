@@ -20,34 +20,75 @@
         <p class="text-sm text-gray-500">
           <span class="font-mono text-xs">{{ profile.slug }}</span>
           <span class="mx-1.5 text-gray-300">·</span>
-          <span class="{% if profile.status == 'enabled' %}text-green-600{% else %}text-gray-400{% endif %}">{{ profile.status }}</span>
-          {% if profile.status != 'deleted' %}
+          <!-- Status badge -->
+          {% if profile.status == 'enabled' %}
+          <span class="inline-flex items-center gap-1 text-green-600"><span class="w-1.5 h-1.5 rounded-full bg-green-500"></span>enabled</span>
+          {% elif profile.status == 'disabled' %}
+          <span class="inline-flex items-center gap-1 text-gray-400"><span class="w-1.5 h-1.5 rounded-full bg-gray-400"></span>disabled</span>
+          {% elif profile.status == 'suspended' %}
+          <span class="inline-flex items-center gap-1 text-amber-600 font-semibold"><span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span>suspended</span>
+          {% elif profile.status == 'soft_deleted' %}
+          <span class="inline-flex items-center gap-1 text-red-500 font-semibold"><span class="w-1.5 h-1.5 rounded-full bg-red-400"></span>soft deleted</span>
+          {% else %}
+          <span class="text-gray-400">{{ profile.status }}</span>
+          {% endif %}
+          {% if profile.status == 'enabled' %}
           <span class="mx-1.5 text-gray-300">·</span>
           <a href="/chat/{{ profile.slug }}" target="_blank" class="text-indigo-600 hover:underline text-xs">Open chat ↗</a>
           {% endif %}
         </p>
       </div>
     </div>
-    {% if profile.status != 'deleted' %}
-    <div class="flex items-center gap-2">
-      <span class="text-xs text-gray-500">Status:</span>
-      {% if profile.status == 'enabled' %}
-      <button
-        hx-patch="/api/profiles/{{ profile.slug }}/status?status=disabled"
-        hx-swap="none"
-        hx-on::after-request="handleStatusChange(event, 'disabled')"
-        class="inline-flex items-center gap-1.5 text-xs font-medium bg-green-100 text-green-700 hover:bg-red-50 hover:text-red-600 px-3 py-1.5 rounded-full border border-green-200 hover:border-red-200 transition-colors"
-      ><span class="w-1.5 h-1.5 rounded-full bg-green-500"></span>Enabled — click to disable</button>
-      {% else %}
+
+    <!-- ── Admin status controls ─────────────────────────────────────────────── -->
+    <div class="flex items-center gap-2 flex-wrap justify-end">
+      {% if profile.status != 'enabled' %}
       <button
         hx-patch="/api/profiles/{{ profile.slug }}/status?status=enabled"
         hx-swap="none"
         hx-on::after-request="handleStatusChange(event, 'enabled')"
-        class="inline-flex items-center gap-1.5 text-xs font-medium bg-gray-100 text-gray-600 hover:bg-green-50 hover:text-green-700 px-3 py-1.5 rounded-full border border-gray-200 hover:border-green-200 transition-colors"
-      ><span class="w-1.5 h-1.5 rounded-full bg-gray-400"></span>Disabled — click to enable</button>
+        class="inline-flex items-center gap-1.5 text-xs font-medium bg-green-50 text-green-700 hover:bg-green-100 px-3 py-1.5 rounded-lg border border-green-200 transition-colors"
+      >
+        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+        Enable
+      </button>
+      {% endif %}
+      {% if profile.status != 'disabled' %}
+      <button
+        hx-patch="/api/profiles/{{ profile.slug }}/status?status=disabled"
+        hx-swap="none"
+        hx-on::after-request="handleStatusChange(event, 'disabled')"
+        class="inline-flex items-center gap-1.5 text-xs font-medium bg-gray-100 text-gray-600 hover:bg-gray-200 px-3 py-1.5 rounded-lg border border-gray-200 transition-colors"
+      >
+        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"/></svg>
+        Disable
+      </button>
+      {% endif %}
+      {% if profile.status != 'suspended' %}
+      <button
+        hx-patch="/api/profiles/{{ profile.slug }}/status?status=suspended"
+        hx-confirm="Suspend '{{ profile.name }}'? Owner portal and chat will be blocked immediately."
+        hx-swap="none"
+        hx-on::after-request="handleStatusChange(event, 'suspended')"
+        class="inline-flex items-center gap-1.5 text-xs font-medium bg-amber-50 text-amber-700 hover:bg-amber-100 px-3 py-1.5 rounded-lg border border-amber-200 transition-colors"
+      >
+        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>
+        Suspend
+      </button>
+      {% endif %}
+      {% if profile.status != 'soft_deleted' %}
+      <button
+        hx-patch="/api/profiles/{{ profile.slug }}/status?status=soft_deleted"
+        hx-confirm="Mark '{{ profile.name }}' for deletion? Chat and owner portal will be blocked. Profile data is retained and can be restored."
+        hx-swap="none"
+        hx-on::after-request="handleStatusChange(event, 'soft_deleted')"
+        class="inline-flex items-center gap-1.5 text-xs font-medium bg-red-50 text-red-600 hover:bg-red-100 px-3 py-1.5 rounded-lg border border-red-200 transition-colors"
+      >
+        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+        Mark for Deletion
+      </button>
       {% endif %}
     </div>
-    {% endif %}
   </div>
 
   {% macro accordion(id, label, icon) %}
@@ -420,31 +461,6 @@
   <div class="p-5">
     <div hx-get="/admin/manage/{{ profile.slug }}/logs" hx-trigger="load" hx-swap="innerHTML">
       <p class="text-sm text-gray-400">Loading…</p>
-    </div>
-  </div>
-  {{ end_accordion() }}
-
-  <!-- ── Delete ── -->
-  {{ accordion("delete", "Delete Profile", '<svg class="w-4 h-4 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>') }}
-  <div class="p-5 space-y-3">
-    <p class="text-sm text-gray-600"><strong>Soft delete</strong> marks as deleted but keeps files. <strong>Hard delete</strong> permanently removes everything.</p>
-    <div class="flex gap-3">
-      <button
-        hx-post="/api/profiles/{{ profile.slug }}/soft-delete"
-        hx-confirm="Soft-delete '{{ profile.name }}'? Files will be kept."
-        hx-swap="none"
-        hx-on::after-request="showToast('Profile soft-deleted'); htmx.ajax('GET','/admin/tab/registry',{target:'#tab-content',swap:'innerHTML'});"
-        class="text-sm font-medium text-amber-700 bg-amber-50 hover:bg-amber-100 px-4 py-2 rounded-lg transition-colors">
-        Soft Delete
-      </button>
-      <button
-        hx-delete="/api/profiles/{{ profile.slug }}"
-        hx-confirm="PERMANENTLY delete '{{ profile.name }}' and all files? This cannot be undone."
-        hx-swap="none"
-        hx-on::after-request="showToast('Profile permanently deleted','error'); htmx.ajax('GET','/admin/tab/registry',{target:'#tab-content',swap:'innerHTML'});"
-        class="text-sm font-medium text-red-700 bg-red-50 hover:bg-red-100 px-4 py-2 rounded-lg transition-colors">
-        Hard Delete
-      </button>
     </div>
   </div>
   {{ end_accordion() }}

@@ -1,7 +1,103 @@
-<!doctype html>
-<html>
-<head><title>Profile Not Available</title></head>
-<body style="font-family:sans-serif;text-align:center;padding:4rem;">
-  <h2>This profile is not available.</h2>
-</body>
-</html>
+{% extends "base.html" %}
+{% block title %}Profile Not Available — ProfileSpark{% endblock %}
+
+{% block body %}
+<div class="min-h-screen bg-gray-50 flex flex-col">
+
+  <!-- ── Page content ────────────────────────────────────────────────────────── -->
+  <div class="flex-1 flex items-center justify-center px-4 py-12">
+    <div class="max-w-4xl w-full bg-white shadow-sm rounded-2xl overflow-hidden">
+
+      <!-- Header — matches chat page brand header style -->
+      <div class="border-b border-gray-200 px-6 py-4 flex items-center justify-between">
+        <div class="flex items-center gap-3">
+          {% if status == "disabled" %}
+          <div class="w-11 h-11 rounded-full bg-gray-100 flex items-center justify-center flex-shrink-0">
+            <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"/>
+            </svg>
+          </div>
+          <div>
+            <p class="font-semibold text-gray-700 text-sm">Profile Temporarily Unavailable</p>
+            <p class="text-xs text-gray-400 mt-0.5">This profile is currently disabled</p>
+          </div>
+          {% elif status == "suspended" %}
+          <div class="w-11 h-11 rounded-full bg-amber-100 flex items-center justify-center flex-shrink-0">
+            <svg class="w-5 h-5 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+            </svg>
+          </div>
+          <div>
+            <p class="font-semibold text-gray-700 text-sm">Profile Not Available</p>
+            <p class="text-xs text-gray-400 mt-0.5">This profile is not currently accessible</p>
+          </div>
+          {% else %}
+          <div class="w-11 h-11 rounded-full bg-red-100 flex items-center justify-center flex-shrink-0">
+            <svg class="w-5 h-5 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+            </svg>
+          </div>
+          <div>
+            <p class="font-semibold text-gray-700 text-sm">Profile No Longer Available</p>
+            <p class="text-xs text-gray-400 mt-0.5">This profile has been removed</p>
+          </div>
+          {% endif %}
+        </div>
+
+        <!-- ProfileSpark brand — right side, identical to chat page -->
+        <div class="flex-shrink-0 flex flex-col items-center justify-center select-none" style="gap:4px;" title="Built on ProfileSpark">
+          <div class="flex items-center" style="gap:8px;">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style="flex-shrink:0;">
+              <defs>
+                <linearGradient id="ps-grad-dis" x1="0" y1="0" x2="1" y2="1">
+                  <stop offset="0%" stop-color="#6366f1"/>
+                  <stop offset="100%" stop-color="#a855f7"/>
+                </linearGradient>
+              </defs>
+              <path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 17l-6.2 4.3 2.4-7.4L2 9.4h7.6L12 2z" fill="url(#ps-grad-dis)"/>
+            </svg>
+            <span style="font-size:17px; font-weight:800; letter-spacing:-0.02em; line-height:1; background:linear-gradient(135deg,#6366f1,#a855f7); -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text;">
+              ProfileSpark
+            </span>
+          </div>
+          <span style="font-size:10px; font-weight:500; letter-spacing:0.15em; text-transform:uppercase; color:#9ca3af; line-height:1;">
+            Career Intelligence
+          </span>
+        </div>
+      </div>
+
+      <!-- Body -->
+      <div class="px-6 py-16 text-center">
+        {% if status == "disabled" %}
+          <p class="text-gray-500 text-sm leading-relaxed max-w-sm mx-auto">
+            This profile is temporarily disabled by the owner. Please check back later.
+          </p>
+        {% elif status == "suspended" %}
+          <p class="text-gray-500 text-sm leading-relaxed max-w-sm mx-auto">
+            This profile is not available at this time.
+          </p>
+        {% else %}
+          <p class="text-gray-500 text-sm leading-relaxed max-w-sm mx-auto">
+            This profile has been removed and is no longer active.
+          </p>
+        {% endif %}
+
+        <div class="mt-8">
+          <a href="/explore"
+            class="inline-flex items-center gap-2 text-sm font-medium text-indigo-600 hover:text-indigo-800 transition-colors">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+            </svg>
+            Explore other profiles
+          </a>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Footer -->
+  {% include "partials/footer.html" %}
+
+</div>
+{% endblock %}
