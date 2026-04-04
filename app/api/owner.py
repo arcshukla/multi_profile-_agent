@@ -16,7 +16,7 @@ import time
 from datetime import date
 from pathlib import Path
 
-from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, Request, UploadFile
+from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, Query, Request, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse, StreamingResponse
 from fastapi.templating import Jinja2Templates
 
@@ -286,22 +286,32 @@ async def toggle_status(request: Request, status: str, user: dict = Depends(requ
 
 # ── Analytics ─────────────────────────────────────────────────────────────────
 
+_VALID_DAYS = {1, 7, 15, 30, 90}
+
 @router.get("/analytics", response_class=HTMLResponse)
-def analytics_page(request: Request, user: dict = Depends(require_owner)):
+def analytics_page(
+    request: Request,
+    user: dict = Depends(require_owner),
+    days: int = Query(default=30),
+):
     blocked = _check_profile_status(request, user)
     if blocked:
         return blocked
     import json as _json
+    if days not in _VALID_DAYS:
+        days = 30
     slug   = _slug(user)
     events = ProfileFileStorage(slug).read_chat_events(limit=200)
     return _r(request, "owner/analytics.html", {
         "user":               user,
         "events":             events,
-        "kpis":               analytics_service.get_owner_kpis(slug),
-        "daily_chart":        _json.dumps(analytics_service.get_daily_questions(slug, days=30)),
-        "token_chart":        _json.dumps(analytics_service.get_token_daily(slug, days=30)),
+        "days":               days,
+        "kpis":               analytics_service.get_owner_kpis(slug, days=days),
+        "daily_chart":        _json.dumps(analytics_service.get_daily_questions(slug, days=days)),
+        "token_chart":        _json.dumps(analytics_service.get_token_daily(slug, days=days)),
         "content_gaps":       analytics_service.get_top_content_gaps(slug, limit=10),
-        "lead_chart":         _json.dumps(analytics_service.get_lead_timeline(slug, days=30)),
+        "lead_chart":         _json.dumps(analytics_service.get_lead_timeline(slug, days=days)),
+        "notif_stats":        analytics_service.get_notification_stats(slug=slug),
     })
 
 

@@ -149,18 +149,24 @@ def admin_system(request: Request):
     })
 
 
+_VALID_ANALYTICS_DAYS = {1, 7, 15, 30, 90}
+
 @router.get("/admin/analytics", response_class=HTMLResponse)
-def admin_analytics(request: Request):
+def admin_analytics(request: Request, days: int = Query(default=30)):
     from app.services import analytics_service
+    if days not in _VALID_ANALYTICS_DAYS:
+        days = 30
     return _r(request, "admin/layout.html", {
         "active_tab":           "analytics",
         "tab_content_template": "admin/tab_analytics.html",
         "current_user":         get_current_user(request),
-        "kpis":                 analytics_service.get_platform_kpis(days=30),
-        "profile_ranking":      analytics_service.get_profile_activity_ranking(days=30),
+        "days":                 days,
+        "kpis":                 analytics_service.get_platform_kpis(days=days),
+        "profile_ranking":      analytics_service.get_profile_activity_ranking(days=days),
         "content_gaps":         analytics_service.get_all_content_gaps(limit=15),
-        "platform_daily":       analytics_service.get_platform_daily(days=30),
-        "platform_tokens":      analytics_service.get_platform_token_burn(days=30),
+        "platform_daily":       analytics_service.get_platform_daily(days=days),
+        "platform_tokens":      analytics_service.get_platform_token_burn(days=days),
+        "notif_stats":          analytics_service.get_notification_stats(),
     })
 
 

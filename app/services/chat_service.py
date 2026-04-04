@@ -280,6 +280,7 @@ class ChatService:
             session_id      = sid,
             tokens_used     = budget.to_model(),
             history_trimmed = history_trimmed,
+            latency_ms      = latency_ms,
         )
 
     def get_initial_followups(self, slug: str) -> list[str]:

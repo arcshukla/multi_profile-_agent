@@ -59,6 +59,7 @@ class NotificationService:
           1. slug is provided
           2. owner record exists and has opted in via preferences
         """
+        logger.info("NOTIF | channel=pushover | type=lead | slug=%s", slug)
         self._pushover.send(f"Lead captured [{session_id}]\n{name}\n{email}")
         if slug:
             self._maybe_email_owner_lead(slug=slug, lead_name=name, lead_email=email, session_id=session_id)
@@ -76,6 +77,7 @@ class NotificationService:
           1. slug is provided
           2. owner record exists and has opted in via preferences
         """
+        logger.info("NOTIF | channel=pushover | type=unknown_question | slug=%s", slug)
         self._pushover.send(f"Unknown question [{session_id}]\n{question}")
         if slug:
             self._maybe_email_owner(slug=slug, question=question, session_id=session_id)
@@ -101,6 +103,7 @@ class NotificationService:
             "INCOMPLETE_PROFILE | slug=%s | session=%s | visitor turned away — no documents uploaded",
             slug, session_id,
         )
+        logger.info("NOTIF | channel=pushover | type=incomplete_profile | slug=%s", slug)
         self._pushover.send(
             f"Incomplete profile — visitor turned away\n"
             f"Profile : {slug}\n"
@@ -113,10 +116,12 @@ class NotificationService:
         self, error_type: str, details: str, session_id: str = ""
     ) -> None:
         """Push notification when the LLM API fails during a chat turn."""
+        logger.info("NOTIF | channel=pushover | type=llm_error | slug=")
         self._pushover.send(f"External error [{session_id}]: {error_type}\n{details}")
 
     def notify_new_registration(self, name: str, email: str, slug: str) -> None:
         """Push notification when a new owner self-registers (status: disabled)."""
+        logger.info("NOTIF | channel=pushover | type=registration | slug=%s", slug)
         self._pushover.send(
             f"New profile registration\n"
             f"Name:  {name}\n"
@@ -147,6 +152,7 @@ class NotificationService:
             "DONATION_CONFIRMED | slug=%s | donation=%s | amount=%.2f",
             slug, donation_id, amount,
         )
+        logger.info("NOTIF | channel=pushover | type=donation | slug=%s", slug)
         self._pushover.send(
             f"Donation confirmed\n"
             f"Profile : {slug}\n"
@@ -183,6 +189,7 @@ class NotificationService:
                 "DONATION_EMAIL | slug=%s | owner=%s | donation=%s | amount=%.2f",
                 slug, owner.email, donation_id, amount,
             )
+            logger.info("NOTIF | channel=email | type=donation | slug=%s | to=%s", slug, owner.email)
             sendgrid_service.send(
                 to_email  = owner.email,
                 **rendered,
@@ -217,6 +224,7 @@ class NotificationService:
             "PAYMENT_CONFIRMED | slug=%s | invoice=%s | amount=%.2f",
             slug, invoice_id, amount,
         )
+        logger.info("NOTIF | channel=pushover | type=payment | slug=%s", slug)
         self._pushover.send(
             f"Invoice payment confirmed\n"
             f"Profile : {slug}\n"
@@ -254,6 +262,7 @@ class NotificationService:
                 "PAYMENT_EMAIL | slug=%s | owner=%s | invoice=%s | amount=%.2f",
                 slug, owner.email, invoice_id, amount,
             )
+            logger.info("NOTIF | channel=email | type=payment | slug=%s | to=%s", slug, owner.email)
             sendgrid_service.send(
                 to_email  = owner.email,
                 **rendered,
@@ -298,6 +307,7 @@ class NotificationService:
                 "INCOMPLETE_PROFILE_EMAIL | slug=%s | owner=%s | sending setup reminder",
                 slug, owner.email,
             )
+            logger.info("NOTIF | channel=email | type=incomplete | slug=%s | to=%s", slug, owner.email)
             sendgrid_service.send(to_email=owner.email, **rendered)
         except Exception as e:
             logger.error(
@@ -345,6 +355,7 @@ class NotificationService:
                 "OWNER_NOTIFY_LEAD | slug=%s | owner=%s | lead_email=%s",
                 slug, owner.email, lead_email,
             )
+            logger.info("NOTIF | channel=email | type=lead | slug=%s | to=%s", slug, owner.email)
             sendgrid_service.send(
                 to_email  = owner.email,
                 **rendered,
@@ -393,6 +404,7 @@ class NotificationService:
                 "OWNER_NOTIFY_UNANSWERED | slug=%s | owner=%s | question=%s",
                 slug, owner.email, question,
             )
+            logger.info("NOTIF | channel=email | type=unanswered | slug=%s | to=%s", slug, owner.email)
             sendgrid_service.send(
                 to_email  = owner.email,
                 **rendered,

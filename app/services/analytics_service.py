@@ -103,13 +103,13 @@ def _fill_date_range(days: int) -> list[str]:
 
 # ── Owner analytics ───────────────────────────────────────────────────────────
 
-def get_owner_kpis(slug: str) -> dict:
+def get_owner_kpis(slug: str, days: int = 30) -> dict:
     """
     KPI summary for the owner dashboard analytics page.
     Returns a flat dict safe to pass directly to Jinja2.
     """
     events  = _load_all_events(slug)
-    recent  = _events_since(events, 30)
+    recent  = _events_since(events, days)
     leads   = _parse_lead_lines(slug)
 
     total_q  = len(events)
@@ -130,20 +130,46 @@ def get_owner_kpis(slug: str) -> dict:
     latencies    = [e["latency_ms"] for e in events if e.get("latency_ms")]
     avg_latency  = round(sum(latencies) / len(latencies)) if latencies else 0
 
+    # Session duration: only sessions with ≥2 turns; cap at 30 min (abandoned tabs).
+    # Low-volume friendly — returns None when no qualifying sessions exist.
+    _MAX_SESSION_SECS = 30 * 60
+    session_durations = []
+    for sid, turns in by_session.items():
+        if turns < 2:
+            continue
+        ts_list = sorted(
+            e["ts"] for e in events if e.get("session_id") == sid and e.get("ts")
+        )
+        if len(ts_list) < 2:
+            continue
+        try:
+            t0 = datetime.fromisoformat(ts_list[0])
+            t1 = datetime.fromisoformat(ts_list[-1])
+            secs = (t1 - t0).total_seconds()
+            if 0 < secs <= _MAX_SESSION_SECS:
+                session_durations.append(secs)
+        except Exception:
+            pass
+    avg_session_mins = (
+        round(sum(session_durations) / len(session_durations) / 60, 1)
+        if session_durations else None
+    )
+
     recent_q      = len(recent)
-    recent_leads  = len([l for l in leads if l["ts"][:10] >= _date_n_days_ago(30)])
+    recent_leads  = len([l for l in leads if l["ts"][:10] >= _date_n_days_ago(days)])
 
     return {
-        "total_questions":  total_q,
-        "unanswered_count": unanswered,
-        "answer_rate":      answer_rate,
-        "unique_sessions":  len(sessions),
+        "total_questions":   total_q,
+        "unanswered_count":  unanswered,
+        "answer_rate":       answer_rate,
+        "unique_sessions":   len(sessions),
         "avg_session_depth": avg_depth,
-        "total_leads":      len(leads),
-        "recent_questions": recent_q,
-        "recent_leads":     recent_leads,
-        "avg_tokens":       avg_tokens,
-        "avg_latency_ms":   avg_latency,
+        "avg_session_mins":  avg_session_mins,
+        "total_leads":       len(leads),
+        "recent_questions":  recent_q,
+        "recent_leads":      recent_leads,
+        "avg_tokens":        avg_tokens,
+        "avg_latency_ms":    avg_latency,
     }
 
 
@@ -238,6 +264,52 @@ def get_lead_timeline(slug: str, days: int = 30) -> dict:
     }
 
 
+# ── Notification stats ────────────────────────────────────────────────────────
+
+def get_notification_stats(slug: str | None = None) -> dict:
+    """
+    Parse app.log* for structured NOTIF lines.
+
+    Returns counts of Pushover and email dispatches.
+    If slug is provided, filters email stats to that profile only.
+    Pushover is always platform-wide (no per-profile filter — admin-only channel).
+
+    Log pattern (written by notification_service.py):
+      NOTIF | channel=pushover | type=<type> | slug=<slug>
+      NOTIF | channel=email    | type=<type> | slug=<slug> | to=<email>
+    """
+    pattern = re.compile(
+        r"NOTIF \| channel=(\w+) \| type=(\w+) \| slug=([^\s|]*)"
+    )
+    pushover: dict[str, int] = defaultdict(int)
+    email: dict[str, int]    = defaultdict(int)
+
+    try:
+        for log_file in sorted(LOGS_DIR.glob("app.log*")):
+            try:
+                for line in log_file.read_text(encoding="utf-8", errors="replace").splitlines():
+                    m = pattern.search(line)
+                    if not m:
+                        continue
+                    channel, ntype, line_slug = m.group(1), m.group(2), m.group(3)
+                    if channel == "pushover":
+                        pushover[ntype] += 1
+                        pushover["total"] += 1
+                    elif channel == "email":
+                        if slug is None or line_slug == slug:
+                            email[ntype] += 1
+                            email["total"] += 1
+            except Exception:
+                pass
+    except Exception as e:
+        logger.warning("notification_stats: could not parse app logs: %s", e)
+
+    return {
+        "pushover": dict(pushover),
+        "email":    dict(email),
+    }
+
+
 # ── Admin analytics ───────────────────────────────────────────────────────────
 
 def _all_active_slugs() -> list[str]:
@@ -260,16 +332,46 @@ def get_platform_kpis(days: int = 30) -> dict:
 
     total_q = 0
     unanswered = 0
-    active_slugs = set()
+    active_slugs_set = set()
+    all_latencies: list[int] = []
+    all_session_durations: list[float] = []
+    _MAX_SESSION_SECS = 30 * 60
 
     for slug in slugs:
-        events = _events_since(_load_all_events(slug), days)
+        all_events = _load_all_events(slug)
+        events     = _events_since(all_events, days)
         if events:
-            active_slugs.add(slug)
+            active_slugs_set.add(slug)
         total_q    += len(events)
         unanswered += sum(1 for e in events if not e.get("was_answered", True))
+        # All-time latencies — response time doesn't change by period and older events lack the field
+        all_latencies.extend(e["latency_ms"] for e in all_events if e.get("latency_ms"))
+
+        # Session durations for this profile
+        by_session: dict[str, list] = defaultdict(list)
+        for e in events:
+            sid = e.get("session_id")
+            if sid and e.get("ts"):
+                by_session[sid].append(e["ts"])
+        for ts_list in by_session.values():
+            if len(ts_list) < 2:
+                continue
+            ts_list.sort()
+            try:
+                t0 = datetime.fromisoformat(ts_list[0])
+                t1 = datetime.fromisoformat(ts_list[-1])
+                secs = (t1 - t0).total_seconds()
+                if 0 < secs <= _MAX_SESSION_SECS:
+                    all_session_durations.append(secs)
+            except Exception:
+                pass
 
     answer_rate = round((total_q - unanswered) / total_q * 100) if total_q else 0
+    avg_latency_ms = round(sum(all_latencies) / len(all_latencies)) if all_latencies else 0
+    avg_session_mins = (
+        round(sum(all_session_durations) / len(all_session_durations) / 60, 1)
+        if all_session_durations else None
+    )
 
     all_leads = [l for l in _parse_lead_lines() if l["ts"][:10] >= cutoff]
     totals    = token_service.get_totals()
@@ -278,11 +380,13 @@ def get_platform_kpis(days: int = 30) -> dict:
         "total_questions":    total_q,
         "unanswered_count":   unanswered,
         "answer_rate":        answer_rate,
-        "active_profiles":    len(active_slugs),
+        "active_profiles":    len(active_slugs_set),
         "total_profiles":     len(slugs),
         "total_leads":        len(all_leads),
         "platform_tokens":    totals.get("grand_total", 0),
         "platform_q_calls":   totals.get("query_calls", 0),
+        "avg_latency_ms":     avg_latency_ms,
+        "avg_session_mins":   avg_session_mins,
     }
 
 
@@ -331,12 +435,17 @@ def get_profile_activity_ranking(days: int = 30) -> list[dict]:
 
     rows = []
     for slug in slugs:
-        events   = _events_since(_load_all_events(slug), days)
-        total    = len(events)
-        gaps     = sum(1 for e in events if not e.get("was_answered", True))
-        rate     = round((total - gaps) / total * 100) if total else 0
-        ts_list  = [e.get("ts", "") for e in events if e.get("ts")]
-        last_on  = max(ts_list)[:10] if ts_list else None
+        all_events = _load_all_events(slug)
+        events     = _events_since(all_events, days)
+        total      = len(events)
+        gaps       = sum(1 for e in events if not e.get("was_answered", True))
+        rate       = round((total - gaps) / total * 100) if total else 0
+        ts_list    = [e.get("ts", "") for e in events if e.get("ts")]
+        last_on    = max(ts_list)[:10] if ts_list else None
+        # Use all-time events for latency — response time is a system characteristic,
+        # not a time-windowed metric; and older events pre-date the latency_ms field.
+        latencies  = [e["latency_ms"] for e in all_events if e.get("latency_ms")]
+        avg_lat    = round(sum(latencies) / len(latencies) / 1000, 1) if latencies else None
         rows.append({
             "slug":        slug,
             "questions":   total,
@@ -344,6 +453,7 @@ def get_profile_activity_ranking(days: int = 30) -> list[dict]:
             "gaps":        gaps,
             "answer_rate": rate,
             "last_active": last_on,
+            "avg_resp_s":  avg_lat,   # avg response time in seconds, None if no data
         })
     return sorted(rows, key=lambda r: r["questions"], reverse=True)
 

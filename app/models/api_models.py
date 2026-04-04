@@ -39,6 +39,7 @@ class ChatResponse(BaseModel):
     tokens_used:     TokenUsage = TokenUsage()
     history_trimmed: bool       = False   # True when earlier messages were dropped per profile limit
     warming_up:      bool       = False   # True when the profile index is still building after restart
+    latency_ms:      int        = 0       # Wall-clock time for this turn (ms); 0 when warming up
 
 
 # ---------------------------------------------------------------------------
