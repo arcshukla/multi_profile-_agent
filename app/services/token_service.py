@@ -106,6 +106,15 @@ class TokenService:
             data[slug] = dict(_ZERO_PROFILE)
             self._save(data)
 
+    def delete_profile(self, slug: str) -> None:
+        """Remove a profile's entry from token_usage.json entirely (called on hard delete)."""
+        with _LOCK:
+            data = self._load()
+            if slug in data:
+                data.pop(slug)
+                self._save(data)
+                logger.info("Token usage cleared for deleted profile '%s'", slug)
+
     # ── Read ──────────────────────────────────────────────────────────────────
 
     def get_all(self) -> dict[str, dict]:
@@ -221,6 +230,10 @@ class TokenService:
 
     # ── Private ───────────────────────────────────────────────────────────────
 
+    # In-memory cache for token_usage.json — invalidated on every write.
+    # Eliminates the disk read on every dashboard / LLM stats page load.
+    _cache: Optional[dict] = None
+
     def _append_ledger(
         self, slug: str, op: str, prompt: int, completion: int, total: int
     ) -> None:
@@ -242,15 +255,20 @@ class TokenService:
             logger.error("Failed to append token ledger: %s", e)
 
     def _load(self) -> dict:
+        if TokenService._cache is not None:
+            return TokenService._cache
         if not _STORE.exists():
-            return {}
+            TokenService._cache = {}
+            return TokenService._cache
         try:
-            return json.loads(_STORE.read_text(encoding="utf-8"))
+            TokenService._cache = json.loads(_STORE.read_text(encoding="utf-8"))
         except Exception as e:
             logger.warning("token_usage.json unreadable — starting fresh: %s", e)
-            return {}
+            TokenService._cache = {}
+        return TokenService._cache
 
     def _save(self, data: dict) -> None:
+        TokenService._cache = None   # invalidate before write
         try:
             _STORE.write_text(json.dumps(data, indent=2), encoding="utf-8")
             hf_sync.push_file(_STORE)

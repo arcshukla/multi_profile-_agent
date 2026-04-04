@@ -94,7 +94,7 @@
           hx-post="/admin/billing/{{ slug }}/invoice/{{ inv.id }}/confirm"
           hx-target="#billing-manage-{{ slug }}"
           hx-swap="outerHTML"
-          hx-confirm="Mark invoice {{ inv.id }} as paid?"
+          hx-confirm="Mark invoice {{ inv.id }} as paid? A receipt email will be sent to the owner."
           class="flex-shrink-0 text-xs font-semibold text-white bg-green-600 hover:bg-green-700 px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap">
           Confirm Payment
         </button>

@@ -150,6 +150,8 @@ The multi-tenant foundation, the RAG pipeline, the isolation model — they are 
 | **Lead Capture** | Visitors who share their email are logged and you're notified via Pushover instantly |
 | **Token Dashboard** | See exactly how many LLM tokens your profile consumes per operation |
 | **Billing Portal** | View invoices, scan UPI QR codes, track payment status |
+| **Transactional Email** | SendGrid integration delivers lead capture alerts, unanswered question digests, invoice delivery, and donation receipts |
+| **Voice Input** | Speak your questions directly in the chat — voice-to-text transcription lets visitors interact without typing |
 
 ### For Platform Admins
 
@@ -163,6 +165,7 @@ The multi-tenant foundation, the RAG pipeline, the isolation model — they are 
 | **User Management** | View registered users, roles, and profile assignments |
 | **Live Logs** | Tail application, indexing, and per-profile chat logs in the browser |
 | **Token Monitoring** | Platform-wide LLM usage per profile and operation type |
+| **New Registration Alerts** | Instant Pushover push notifications to admins whenever a new user registers on the platform |
 
 ### For Visitors
 
@@ -976,7 +979,7 @@ CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "7860"]
 
 - [ ] **Chat analytics dashboard** — volume, session depth, most-asked questions, unanswered gaps
 - [ ] **A/B prompt testing** — compare answer quality and engagement across prompt variants
-- [ ] **Multi-language support** — auto-detect visitor language, prompts and responses adapt
+- [ ] **Multi-lingual support** — auto-detect visitor language; prompts, responses, and UI adapt to the visitor's locale
 - [ ] **Custom domains** — CNAME support for white-labelled `/chat/{slug}` pages
 - [ ] **Embedding model choice** — swap sentence-transformers for `text-embedding-3-small` etc.
 - [ ] **Rate limiting** — per-profile and platform-wide chat throttling

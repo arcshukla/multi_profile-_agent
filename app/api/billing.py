@@ -10,6 +10,7 @@ GET  /owner/billing/donation/qr/{don_id}    — serve donation QR PNG
 """
 
 import inspect
+from datetime import date, datetime, timezone, timedelta
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, Form, Request
@@ -103,6 +104,13 @@ def serve_qr(request: Request, invoice_id: str, user: dict = Depends(require_own
     if inv is None:
         return HTMLResponse("Invoice not found", status_code=404)
 
+    # QR expires the day after the due date (force regenerate for overdue invoices)
+    try:
+        if date.today() > date.fromisoformat(inv.due_date):
+            return HTMLResponse("QR expired — due date has passed", status_code=410)
+    except ValueError:
+        pass  # malformed due_date: serve anyway
+
     qr_file = STATIC_DIR / inv.qr_path
     if not qr_file.exists():
         # Lazy regeneration (HF Spaces restart / first-time QR failure)
@@ -163,6 +171,16 @@ def serve_donation_qr(
     rec = next((d for d in entry.donations if d.id == safe_id), None)
     if rec is None:
         return HTMLResponse("Donation record not found", status_code=404)
+
+    # Donation QR expires 10 minutes after creation
+    try:
+        created = datetime.fromisoformat(rec.created_at)
+        if created.tzinfo is None:
+            created = created.replace(tzinfo=timezone.utc)
+        if datetime.now(timezone.utc) - created > timedelta(minutes=10):
+            return HTMLResponse("QR expired", status_code=410)
+    except (ValueError, TypeError):
+        pass  # malformed created_at: serve anyway
 
     if not rec.qr_path:
         return HTMLResponse("No QR for this donation", status_code=404)

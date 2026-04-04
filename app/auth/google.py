@@ -38,7 +38,7 @@ async def redirect_to_google(request: Request):
     # for non-local callback URLs. Local dev stays on plain http.
     if redirect_uri.startswith("http://") and "localhost" not in redirect_uri and "127.0.0.1" not in redirect_uri:
         redirect_uri = "https://" + redirect_uri[len("http://"):]
-    return await oauth.google.authorize_redirect(request, redirect_uri)
+    return await oauth.google.authorize_redirect(request, redirect_uri, prompt="select_account")
 
 
 async def handle_callback(request: Request) -> dict | None:

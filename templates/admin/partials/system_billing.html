@@ -25,11 +25,21 @@
     </div>
   </div>
 
+  <style>details[open] .details-chevron { transform: rotate(180deg); }</style>
+
   <!-- ── Invoice Activity accordion ────────────────────────────────────────── -->
-  <details class="bg-white border border-gray-200 rounded-xl overflow-hidden" open>
+  <details class="bg-white border border-gray-200 rounded-xl overflow-hidden">
     <summary class="flex items-center justify-between px-5 py-3.5 cursor-pointer select-none hover:bg-gray-50 transition-colors">
-      <span class="text-sm font-semibold text-gray-700">Invoice Activity</span>
-      <span class="text-xs text-gray-400">{{ billing_rows | length }} record{{ 's' if billing_rows | length != 1 else '' }}</span>
+      <div class="flex items-center gap-2">
+        <svg class="w-4 h-4 text-indigo-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+        </svg>
+        <span class="text-sm font-semibold text-gray-700">Invoice Activity</span>
+        <span class="text-xs text-gray-400 ml-1">{{ billing_rows | length }} record{{ 's' if billing_rows | length != 1 else '' }}</span>
+      </div>
+      <svg class="w-4 h-4 text-indigo-500 transition-transform duration-200 details-chevron flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+      </svg>
     </summary>
     <div class="border-t border-gray-100">
 
@@ -105,14 +115,22 @@
               <td class="px-4 py-2.5 font-semibold text-gray-800">₹{{ row.amount }}</td>
               <td class="px-4 py-2.5 text-gray-500">{{ row.due_date }}</td>
               <td class="px-4 py-2.5">
-                <select class="border border-gray-200 rounded px-2 py-1 text-xs bg-white"
+                {% if row.payment_status == 'Paid' %}
+                <span class="inline-flex items-center gap-1 bg-green-100 text-green-700 font-semibold px-2 py-0.5 rounded-full">
+                  <span class="w-1 h-1 rounded-full bg-green-500"></span>Paid
+                </span>
+                {% else %}
+                <select name="payment_status"
+                        class="border border-gray-200 rounded px-2 py-1 text-xs bg-white"
                         hx-post="/admin/system/billing/update_status"
                         hx-vals='{"slug": "{{ row.slug }}", "due_date": "{{ row.due_date }}"}'
+                        hx-trigger="change"
                         hx-target="this" hx-swap="outerHTML">
-                  <option value="Paid"    {% if row.payment_status == 'Paid'    %}selected{% endif %}>Paid</option>
                   <option value="Pending" {% if row.payment_status == 'Pending' %}selected{% endif %}>Pending</option>
                   <option value="Overdue" {% if row.payment_status == 'Overdue' %}selected{% endif %}>Overdue</option>
+                  <option value="Paid">Paid</option>
                 </select>
+                {% endif %}
               </td>
             </tr>
             {% else %}
@@ -126,10 +144,18 @@
   </details>
 
   <!-- ── Donation Activity accordion ───────────────────────────────────────── -->
-  <details class="bg-white border border-gray-200 rounded-xl overflow-hidden" open>
+  <details class="bg-white border border-gray-200 rounded-xl overflow-hidden">
     <summary class="flex items-center justify-between px-5 py-3.5 cursor-pointer select-none hover:bg-gray-50 transition-colors">
-      <span class="text-sm font-semibold text-gray-700">Donation Activity</span>
-      <span class="text-xs text-gray-400">{{ donation_rows | length }} record{{ 's' if donation_rows | length != 1 else '' }}</span>
+      <div class="flex items-center gap-2">
+        <svg class="w-4 h-4 text-indigo-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"/>
+        </svg>
+        <span class="text-sm font-semibold text-gray-700">Donation Activity</span>
+        <span class="text-xs text-gray-400 ml-1">{{ donation_rows | length }} record{{ 's' if donation_rows | length != 1 else '' }}</span>
+      </div>
+      <svg class="w-4 h-4 text-indigo-500 transition-transform duration-200 details-chevron flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+      </svg>
     </summary>
     <div class="border-t border-gray-100">
 
@@ -181,30 +207,38 @@
               <th class="px-4 py-2.5 text-left font-semibold text-gray-500 uppercase tracking-wide">Reference</th>
               <th class="px-4 py-2.5 text-left font-semibold text-gray-500 uppercase tracking-wide">Amount</th>
               <th class="px-4 py-2.5 text-left font-semibold text-gray-500 uppercase tracking-wide">Note</th>
-              <th class="px-4 py-2.5 text-left font-semibold text-gray-500 uppercase tracking-wide">Status</th>
               <th class="px-4 py-2.5 text-left font-semibold text-gray-500 uppercase tracking-wide">Confirmed On</th>
+              <th class="px-4 py-2.5 text-left font-semibold text-gray-500 uppercase tracking-wide">Status</th>
             </tr>
           </thead>
           <tbody class="divide-y divide-gray-50">
             {% for row in donation_rows %}
-            <tr class="hover:bg-gray-50 {{ 'bg-green-50' if row.status == 'Confirmed' else '' }}">
+            <tr class="hover:bg-gray-50">
               <td class="px-4 py-2.5 text-gray-800">{{ row.name }}</td>
               <td class="px-4 py-2.5 text-gray-500 font-mono text-xs">{{ row.slug }}</td>
               <td class="px-4 py-2.5 font-mono text-gray-600 text-xs">{{ row.id }}</td>
               <td class="px-4 py-2.5 font-semibold text-gray-800">₹{{ "%.2f"|format(row.amount) }}</td>
               <td class="px-4 py-2.5 text-gray-500 italic max-w-[160px] truncate" title="{{ row.note }}">{{ row.note or "—" }}</td>
-              <td class="px-4 py-2.5">
+              <td id="don-confirmedat-{{ row.id }}" class="px-4 py-2.5 text-gray-500">{{ row.confirmed_at[:10] if row.confirmed_at else "—" }}</td>
+              <td id="don-status-{{ row.id }}" class="px-4 py-2.5">
                 {% if row.status == "Confirmed" %}
                 <span class="inline-flex items-center gap-1 bg-green-100 text-green-700 font-semibold px-2 py-0.5 rounded-full">
                   <span class="w-1 h-1 rounded-full bg-green-500"></span>Confirmed
                 </span>
                 {% else %}
-                <span class="inline-flex items-center gap-1 bg-amber-100 text-amber-700 font-semibold px-2 py-0.5 rounded-full">
-                  <span class="w-1 h-1 rounded-full bg-amber-500"></span>Pending
-                </span>
+                <div class="flex items-center gap-2">
+                  <span class="inline-flex items-center gap-1 bg-amber-100 text-amber-700 font-semibold px-2 py-0.5 rounded-full">
+                    <span class="w-1 h-1 rounded-full bg-amber-500"></span>Pending
+                  </span>
+                  <button class="px-2 py-0.5 text-xs font-semibold bg-indigo-600 text-white rounded hover:bg-indigo-700 transition-colors"
+                          hx-post="/admin/system/billing/confirm_donation"
+                          hx-vals='{"slug": "{{ row.slug }}", "donation_id": "{{ row.id }}"}'
+                          hx-target="#don-status-{{ row.id }}"
+                          hx-swap="outerHTML"
+                          hx-confirm="Confirm receipt of ₹{{ '%.2f'|format(row.amount) }} from {{ row.name }}?">Confirm</button>
+                </div>
                 {% endif %}
               </td>
-              <td class="px-4 py-2.5 text-gray-500">{{ row.confirmed_at[:10] if row.confirmed_at else "—" }}</td>
             </tr>
             {% else %}
             <tr><td colspan="7" class="text-center text-gray-400 py-8 italic">No donation records found.</td></tr>

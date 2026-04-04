@@ -1,4 +1,4 @@
-{% if not chunks %}
+{% if not chunks and total == 0 %}
 <p class="text-xs text-gray-400 italic">No chunks indexed yet.</p>
 {% else %}
 <div class="space-y-2 max-h-96 overflow-y-auto mt-2">
@@ -13,4 +13,35 @@
   </div>
   {% endfor %}
 </div>
+
+{% if total_pages > 1 %}
+<div class="flex items-center justify-between mt-3 pt-2 border-t border-gray-100">
+  <span class="text-xs text-gray-400">
+    Showing {{ (page - 1) * page_size + 1 }}–{{ [(page * page_size), total] | min }} of {{ total }} chunks
+  </span>
+  <div class="flex items-center gap-1">
+    {% if page > 1 %}
+    <button
+      hx-get="/admin/manage/{{ slug }}/chunks?page={{ page - 1 }}"
+      hx-target="closest .chunks-content"
+      hx-swap="innerHTML"
+      class="text-xs px-2 py-1 rounded border border-gray-200 text-gray-600 hover:bg-gray-50">← Prev</button>
+    {% else %}
+    <span class="text-xs px-2 py-1 rounded border border-gray-100 text-gray-300 cursor-default">← Prev</span>
+    {% endif %}
+
+    <span class="text-xs text-gray-500 px-2">{{ page }} / {{ total_pages }}</span>
+
+    {% if page < total_pages %}
+    <button
+      hx-get="/admin/manage/{{ slug }}/chunks?page={{ page + 1 }}"
+      hx-target="closest .chunks-content"
+      hx-swap="innerHTML"
+      class="text-xs px-2 py-1 rounded border border-gray-200 text-gray-600 hover:bg-gray-50">Next →</button>
+    {% else %}
+    <span class="text-xs px-2 py-1 rounded border border-gray-100 text-gray-300 cursor-default">Next →</span>
+    {% endif %}
+  </div>
+</div>
+{% endif %}
 {% endif %}

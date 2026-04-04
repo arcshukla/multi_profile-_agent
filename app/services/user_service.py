@@ -44,15 +44,25 @@ class UserService:
 
     def __init__(self) -> None:
         self._lock = threading.Lock()
+        self._cache: Optional[dict] = None           # email → record, None = not loaded
+        self._slug_index: dict[str, str] = {}         # slug → email reverse index
 
     # ── Read ──────────────────────────────────────────────────────────────────
 
     def _load(self) -> dict:
-        """Load users.json, falling back to numbered backups on failure."""
+        """
+        Load users.json, falling back to numbered backups on failure.
+        Result is cached in memory and served from cache on subsequent calls.
+        Call _invalidate_cache() before any write to ensure consistency.
+        """
+        if self._cache is not None:
+            return self._cache
+
         max_bak = getattr(settings, "DATA_BACKUP_COUNT", 3)
         candidates = [_USERS_FILE] + [
             _USERS_FILE.parent / f"users.bak{i}.json" for i in range(1, max_bak + 1)
         ]
+        data: dict = {}
         for path in candidates:
             try:
                 if path.exists():
@@ -61,15 +71,28 @@ class UserService:
                         logger.warning(
                             "users.json unreadable — loaded from backup: %s", path.name
                         )
-                    return data
+                    break
             except Exception as e:
                 logger.error("Failed to load %s: %s", path.name, e)
-        return {}
+
+        self._cache = data
+        self._slug_index = {
+            rec["slug"]: email
+            for email, rec in data.items()
+            if rec.get("slug")
+        }
+        return self._cache
+
+    def _invalidate_cache(self) -> None:
+        """Discard the in-memory cache so the next read reloads from disk."""
+        self._cache = None
+        self._slug_index = {}
 
     def _save(self, data: dict) -> None:
         """Rotate backups then write. Keeps up to DATA_BACKUP_COUNT backups."""
         from app.storage.hf_sync import hf_sync
 
+        self._invalidate_cache()   # invalidate before write so stale data is never served
         max_bak = getattr(settings, "DATA_BACKUP_COUNT", 3)
         # Shift existing backups: bak2→bak3, bak1→bak2
         for i in range(max_bak - 1, 0, -1):
@@ -102,12 +125,17 @@ class UserService:
         return UserEntity(email=email, **rec) if rec else None
 
     def get_user_by_slug(self, slug: str) -> Optional[UserEntity]:
-        """Return owner record by profile slug, or None."""
+        """
+        Return owner record by profile slug, or None.
+        Uses the in-memory reverse index — O(1) instead of O(n) scan.
+        """
         with self._lock:
-            for email, rec in self._load().items():
-                if rec.get("slug") == slug:
-                    return UserEntity(email=email, **rec)
-        return None
+            data  = self._load()          # populates _slug_index as side-effect
+            email = self._slug_index.get(slug)
+            if not email:
+                return None
+            rec = data.get(email)
+            return UserEntity(email=email, **rec) if rec else None
 
     # ── Resolve session (called after Google OAuth callback) ──────────────────
 

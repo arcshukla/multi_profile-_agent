@@ -76,7 +76,19 @@ def _read_docx(path: Path) -> str:
     try:
         from docx import Document
         doc = Document(str(path))
-        return "\n\n".join(p.text for p in doc.paragraphs if p.text.strip())
+        parts = []
+        # Body paragraphs
+        for p in doc.paragraphs:
+            if p.text.strip():
+                parts.append(p.text)
+        # Table cells (common in resume layouts)
+        for table in doc.tables:
+            for row in table.rows:
+                for cell in row.cells:
+                    cell_text = cell.text.strip()
+                    if cell_text and cell_text not in parts:
+                        parts.append(cell_text)
+        return "\n\n".join(parts)
     except ImportError:
         raise ImportError("Install python-docx: pip install python-docx")
 

@@ -127,6 +127,15 @@ class BillingService:
         )
         hf_sync.push_file(_STORE)
 
+    def delete_profile(self, slug: str) -> None:
+        """Remove a profile's billing entry entirely (called on hard delete)."""
+        with _LOCK:
+            data = self._load()
+            if slug in data:
+                data.pop(slug)
+                self._save(data)
+                logger.info("Billing entry removed for deleted profile '%s'", slug)
+
     def _get_entry(self, slug: str, data: dict) -> BillingEntry:
         raw = data.get(slug)
         if raw is None:
@@ -296,6 +305,34 @@ class BillingService:
             self._save(data)
 
         logger.info("Invoice %s confirmed paid by %s", invoice_id, admin_email)
+        return inv
+
+    def set_invoice_status(
+        self,
+        slug:       str,
+        due_date:   str,
+        new_status: str,
+    ) -> Invoice:
+        """
+        Set invoice status to any value (Paid/Pending/Overdue).
+        Used by the system billing table dropdown (admin bulk view).
+        """
+        try:
+            status = InvoiceStatus(new_status.lower())
+        except ValueError:
+            raise ValueError(f"Invalid invoice status: {new_status!r}")
+        with _LOCK:
+            data  = self._load()
+            entry = self._get_entry(slug, data)
+            inv = next((i for i in entry.invoices if i.due_date == due_date), None)
+            if inv is None:
+                raise ValueError(f"No invoice with due_date {due_date!r} for profile {slug!r}.")
+            inv.status = status
+            if status == InvoiceStatus.PAID and not inv.paid_at:
+                inv.paid_at = _utcnow()
+            self._set_entry(entry, data)
+            self._save(data)
+        logger.info("Invoice due_date=%s for %s set to %s", due_date, slug, status.value)
         return inv
 
     def regenerate_qr(self, slug: str, invoice_id: str) -> Optional[str]:

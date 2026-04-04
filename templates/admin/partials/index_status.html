@@ -1,14 +1,21 @@
 <!-- Partial: index status panel -->
-<div class="space-y-4">
-  <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+<div class="space-y-4"
+  {% if status.status == 'running' %}
+  hx-get="/admin/manage/{{ slug }}/index-status"
+  hx-trigger="every 3s"
+  hx-target="#index-status-{{ slug }}"
+  hx-swap="innerHTML"
+  {% endif %}>
+  <div class="grid grid-cols-2 sm:grid-cols-5 gap-3">
     <div class="bg-gray-50 rounded-lg px-4 py-3">
       <p class="text-xs text-gray-500 mb-0.5">Status</p>
       <p class="text-sm font-semibold
         {% if status.status == 'success' or status.status == 'indexed' %}text-green-600
         {% elif status.status == 'running' or status.status == 'indexing' %}text-blue-600 animate-pulse
         {% elif status.status == 'failed' %}text-red-600
+        {% elif status.status == 'empty' %}text-amber-500
         {% else %}text-gray-400{% endif %}">
-        {{ status.status | replace('_', ' ') | title }}
+        {% if status.status == 'empty' %}Indexed (0 chunks){% else %}{{ status.status | replace('_', ' ') | title }}{% endif %}
       </p>
     </div>
 
@@ -24,7 +31,7 @@
 
     <div class="bg-gray-50 rounded-lg px-4 py-3">
       <p class="text-xs text-gray-500 mb-0.5">Last Indexed (UTC)</p>
-      <p class="text-sm font-semibold text-gray-900 font-mono">
+      <p class="text-sm font-semibold text-gray-900 font-mono text-xs">
         {% if status.last_indexed %}
           {# Strip microseconds: "2026-03-26T19:02:42.926810+00:00" → "2026-03-26 19:02 UTC" #}
           {{ status.last_indexed[:16] | replace("T", " ") }} UTC
@@ -33,21 +40,50 @@
         {% endif %}
       </p>
     </div>
+
+    <div class="bg-gray-50 rounded-lg px-4 py-3">
+      <p class="text-xs text-gray-500 mb-0.5">Index Duration</p>
+      <p class="text-sm font-semibold text-gray-900">
+        {% if status.duration_seconds is not none %}
+          {{ status.duration_seconds }}s
+        {% else %}
+          —
+        {% endif %}
+      </p>
+    </div>
   </div>
 
+  {% if status.status == 'running' %}
+  <script>
+    (function() {
+      var panel = document.getElementById('panel-index');
+      if (panel && panel.classList.contains('hidden')) { toggleAccordion('index'); }
+    })();
+  </script>
+  {% endif %}
+
+  {% if status.status == 'empty' %}
+  <div class="flex items-start gap-2 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+    <svg class="w-3.5 h-3.5 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+    <span>Indexing ran but produced 0 chunks. The document may be unreadable, or the LLM failed to parse it. Check the profile log for details, then try <strong>Force Reindex</strong>.</span>
+  </div>
+  {% endif %}
+
   {% if status.chunk_count > 0 %}
-  <!-- Chunks viewer (advanced) -->
-  <details class="mt-1">
+  <!-- Chunks viewer — hx-trigger="toggle once" must be on <details> itself;
+       the toggle event fires on <details> and does not bubble to child elements. -->
+  <details class="mt-1"
+    hx-get="/admin/manage/{{ slug }}/chunks"
+    hx-trigger="toggle once"
+    hx-target="find .chunks-content"
+    hx-swap="innerHTML">
     <summary class="text-xs text-gray-400 cursor-pointer hover:text-indigo-600 select-none inline-flex items-center gap-1">
       <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h8"/>
       </svg>
       View indexed chunks ({{ status.chunk_count }})
     </summary>
-    <div class="mt-2"
-      hx-get="/admin/manage/{{ slug }}/chunks"
-      hx-trigger="toggle once"
-      hx-swap="innerHTML">
+    <div class="chunks-content mt-2">
       <p class="text-xs text-gray-400 italic">Loading chunks…</p>
     </div>
   </details>

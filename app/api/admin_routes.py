@@ -101,6 +101,7 @@ async def admin_update_owner_preferences(
     owner_email: str = Form(...),
     name: str = Form(""),
     notify_unanswered_email: str = Form(None),
+    notify_lead_email:       str = Form(None),
     current_user: dict = Depends(require_admin),
 ):
     owner_user = user_service.get_user_by_slug(slug)
@@ -122,7 +123,10 @@ async def admin_update_owner_preferences(
             if not ok:
                 error = err
         if not error:
-            prefs = {"notify_unanswered_email": notify_unanswered_email == "on"}
+            prefs = {
+                "notify_unanswered_email": notify_unanswered_email == "on",
+                "notify_lead_email":       notify_lead_email == "on",
+            }
             preferences_service.save(slug, prefs)
             saved = True
             owner_user = user_service.get_user_by_slug(slug)
@@ -237,21 +241,43 @@ def htmx_index_status(request: Request, slug: str):
     })
 
 
+_CHUNKS_PAGE_SIZE = 20
+
 @router.get("/admin/manage/{slug}/chunks", response_class=HTMLResponse)
-def htmx_chunks(request: Request, slug: str):
-    engine = index_service.get_engine(slug)
+def htmx_chunks(request: Request, slug: str, page: int = Query(1, ge=1)):
+    engine      = index_service.get_engine(slug)
+    total       = engine.chunk_count() if engine else 0
+    page_size   = _CHUNKS_PAGE_SIZE
+    total_pages = max(1, (total + page_size - 1) // page_size)
+    page        = min(page, total_pages)
+    offset      = (page - 1) * page_size
+
     chunks = []
-    if engine and engine.chunk_count() > 0:
-        result = engine.collection.get(include=["documents", "metadatas"])
-        for i, (doc, meta) in enumerate(zip(result.get("documents", []), result.get("metadatas", [])), 1):
+    if engine and total > 0:
+        result = engine.collection.get(
+            include=["documents", "metadatas"],
+            limit=page_size,
+            offset=offset,
+        )
+        for i, (doc, meta) in enumerate(
+            zip(result.get("documents", []), result.get("metadatas", [])),
+            start=offset + 1,
+        ):
             chunks.append({
-                "i":        i,
-                "topic":    (meta or {}).get("topic", "—"),
-                "source":   (meta or {}).get("source", "—"),
-                "preview":  doc[:200],
+                "i":         i,
+                "topic":     (meta or {}).get("topic", "—"),
+                "source":    (meta or {}).get("source", "—"),
+                "preview":   doc[:200],
                 "truncated": len(doc) > 200,
             })
-    return _r(request, "admin/partials/chunks.html", {"chunks": chunks})
+    return _r(request, "admin/partials/chunks.html", {
+        "chunks":       chunks,
+        "slug":         slug,
+        "page":         page,
+        "total_pages":  total_pages,
+        "total":        total,
+        "page_size":    page_size,
+    })
 
 
 @router.get("/admin/manage/{slug}/logs", response_class=HTMLResponse)
@@ -357,6 +383,81 @@ def htmx_system_billing(
     })
 
 
+@router.post("/admin/system/billing/update_status", response_class=HTMLResponse)
+async def system_billing_update_invoice_status(
+    request:        Request,
+    slug:           str = Form(...),
+    due_date:       str = Form(...),
+    payment_status: str = Form(...),
+):
+    """Update invoice payment status from the system billing table dropdown."""
+    try:
+        get_current_user(request)
+        billing_service.set_invoice_status(slug, due_date, payment_status)
+    except ValueError as exc:
+        return htmx_err(str(exc))
+    # Paid → lock permanently; return a badge, not a dropdown
+    if payment_status.lower() == "paid":
+        return HTMLResponse(
+            '<span class="inline-flex items-center gap-1 bg-green-100 text-green-700'
+            ' font-semibold px-2 py-0.5 rounded-full">'
+            '<span class="w-1 h-1 rounded-full bg-green-500"></span>Paid</span>'
+        )
+    slug_esc = slug.replace('"', "&quot;")
+    due_esc  = due_date.replace('"', "&quot;")
+    opts = "".join(
+        f'<option value="{v}"{"  selected" if v == payment_status else ""}>{v}</option>'
+        for v in ("Pending", "Overdue", "Paid")
+    )
+    return HTMLResponse(
+        f'<select name="payment_status"'
+        f' class="border border-gray-200 rounded px-2 py-1 text-xs bg-white"'
+        f' hx-post="/admin/system/billing/update_status"'
+        f' hx-vals=\'{{"slug":"{slug_esc}","due_date":"{due_esc}"}}\''
+        f' hx-trigger="change"'
+        f' hx-target="this" hx-swap="outerHTML">{opts}</select>'
+    )
+
+
+@router.post("/admin/system/billing/confirm_donation", response_class=HTMLResponse)
+async def system_billing_confirm_donation(
+    request:     Request,
+    slug:        str = Form(...),
+    donation_id: str = Form(...),
+):
+    """Confirm a pending donation from the system billing table."""
+    import threading  # noqa: PLC0415
+    from app.services.notification_service import notification_service  # noqa: PLC0415
+
+    try:
+        admin_email = get_current_user(request)["email"]
+        record      = billing_service.confirm_donation(slug, donation_id, admin_email)
+    except ValueError as exc:
+        return htmx_err(str(exc))
+
+    threading.Thread(
+        target=notification_service.notify_donation_confirmed,
+        args=(slug, record.id, record.amount, record.confirmed_at),
+        daemon=True,
+    ).start()
+
+    confirmed_date = record.confirmed_at[:10] if record.confirmed_at else "—"
+    # OOB swap updates the Confirmed On cell; main swap replaces the Status cell
+    oob = (
+        f'<td id="don-confirmedat-{donation_id}" hx-swap-oob="true"'
+        f' class="px-4 py-2.5 text-gray-500">{confirmed_date}</td>'
+    )
+    status_td = (
+        f'<td id="don-status-{donation_id}" class="px-4 py-2.5">'
+        f'<span class="inline-flex items-center gap-1 bg-green-100 text-green-700 font-semibold px-2 py-0.5 rounded-full">'
+        f'<span class="w-1 h-1 rounded-full bg-green-500"></span>Confirmed'
+        f'</span></td>'
+    )
+    response = HTMLResponse(status_td + oob)
+    response.headers["HX-Trigger"] = '{"showToast":"Donation confirmed. Thank-you email sent to owner."}'
+    return response
+
+
 @router.get("/admin/system/history", response_class=HTMLResponse)
 def htmx_system_history(request: Request, slug: Optional[str] = None):
     history = index_service.get_history(slug=slug or None, limit=100)
@@ -456,6 +557,13 @@ async def htmx_save_email_template(
     if not ok:
         return HTMLResponse('<span class="text-red-600">Unknown template name.</span>', status_code=400)
     return HTMLResponse('<span class="text-green-600 font-medium">Saved.</span>')
+
+
+@router.post("/admin/system/email/preview", response_class=HTMLResponse)
+async def htmx_preview_email_template(body_html: str = Form(...)):
+    """Return the fragment wrapped in the shared email layout for iframe preview."""
+    full_html = email_template_service.wrap_layout(body_html)
+    return HTMLResponse(full_html)
 
 
 @router.post("/admin/system/email/restore/{name}", response_class=HTMLResponse)
@@ -626,13 +734,23 @@ async def admin_create_invoice(request: Request, slug: str):
 
 @router.post("/admin/billing/{slug}/invoice/{invoice_id}/confirm", response_class=HTMLResponse)
 async def admin_confirm_payment(request: Request, slug: str, invoice_id: str):
+    import threading  # noqa: PLC0415
+    from app.services.notification_service import notification_service  # noqa: PLC0415
+
     try:
         admin_email = get_current_user(request)["email"]
-        billing_service.confirm_payment(slug, invoice_id, admin_email)
+        inv = billing_service.confirm_payment(slug, invoice_id, admin_email)
     except ValueError as exc:
         return htmx_err(f"Error: {exc}")
+
+    threading.Thread(
+        target  = notification_service.notify_payment_confirmed,
+        args    = (slug, inv.id, inv.amount, inv.period_start, inv.period_end, inv.paid_at),
+        daemon  = True,
+    ).start()
+
     resp = _billing_partial(request, slug)
-    resp.headers["HX-Trigger"] = '{"showToast":"Payment confirmed."}'
+    resp.headers["HX-Trigger"] = '{"showToast":"Payment confirmed. Receipt email sent to owner."}'
     return resp
 
 

@@ -30,12 +30,17 @@ from typing import Callable, Optional
 
 import chromadb
 from chromadb.config import Settings as ChromaSettings
+from chromadb.utils.embedding_functions import ONNXMiniLM_L6_V2 as _ONNXEmbedFn
 
 from app.core.logging_config import get_logger
 from app.utils.file_utils import read_document
 from app.rag.llm_client import LLMClient
 
 logger = get_logger(__name__)
+
+# Module-level singleton — loaded once on import, shared across all SemanticRAGEngine instances.
+# Avoids repeated ONNX model loads and suppresses the "No ONNX providers" warning.
+_EMBEDDING_FN = _ONNXEmbedFn(preferred_providers=["CPUExecutionProvider"])
 
 
 class SemanticRAGEngine:
@@ -64,18 +69,26 @@ class SemanticRAGEngine:
         self.on_tokens     = on_tokens
         self.llm           = LLMClient()
 
-        client = chromadb.PersistentClient(
+        self._client = chromadb.PersistentClient(
             path=db_path,
             settings=ChromaSettings(anonymized_telemetry=False),
         )
-        self.collection = client.get_or_create_collection(
+        self.collection = self._client.get_or_create_collection(
             name=collection_name,
             metadata={"hnsw:space": "cosine"},
+            embedding_function=_EMBEDDING_FN,
         )
         logger.info(
             "SemanticRAGEngine ready | path='%s' | collection='%s' | %d chunks | topics=%s",
             db_path, collection_name, self.collection.count(), topic_labels,
         )
+
+    def close(self) -> None:
+        """Release the ChromaDB connection. Call before wiping the DB directory."""
+        try:
+            self._client._system.stop()
+        except Exception as e:
+            logger.warning("ChromaDB client close failed: %s", e)
 
     # ── Ingestion ─────────────────────────────────────────────────────────────
 
@@ -89,24 +102,29 @@ class SemanticRAGEngine:
         if not path.is_file():
             raise FileNotFoundError(f"File not found: {path}")
 
-        logger.info("Ingesting: %s", path)
         try:
             raw_text = read_document(path)
         except Exception as e:
             logger.warning("Could not read %s: %s", path, e, exc_info=True)
             return 0
 
-        logger.debug("Splitting document: %d chars", len(raw_text))
+        logger.info("Ingesting: %s | %d chars extracted", path.name, len(raw_text))
+        if not raw_text.strip():
+            logger.warning("Empty text extracted from %s — skipping", path.name)
+            return 0
         sections = self._split_into_sections(raw_text, source_name=str(path))
         if not sections:
             logger.warning("No sections extracted from %s", path)
             return 0
 
+        logger.info("Parsed %d sections from %s", len(sections), path.name)
         added = 0
+        skipped = 0
         for section in sections:
             topic = section.get("topic", "other")
             text  = section.get("text", "").strip()
             if not text:
+                skipped += 1
                 continue
             chunk_id = self._chunk_id(text)
             try:
@@ -117,10 +135,17 @@ class SemanticRAGEngine:
                 )
                 added += 1
             except Exception as e:
-                # Most likely a duplicate chunk ID — already indexed; log at debug
-                logger.debug("Chunk skipped (already indexed or DB error): id=%s | %s", chunk_id, e)
+                err_name = type(e).__name__
+                if "unique" in str(e).lower() or "exists" in str(e).lower():
+                    logger.debug("Chunk already indexed (duplicate id=%s)", chunk_id)
+                else:
+                    logger.warning("collection.add failed | id=%s | %s: %s", chunk_id, err_name, e)
+                skipped += 1
 
-        logger.info("Ingested %s → %d new chunks (total: %d)", path.name, added, self.collection.count())
+        logger.info(
+            "Ingested %s → %d new chunks, %d skipped (total: %d)",
+            path.name, added, skipped, self.collection.count()
+        )
         return added
 
     def ingest_all(self, docs_dir: str | Path) -> int:
@@ -208,7 +233,11 @@ class SemanticRAGEngine:
         return sorted(t for t in topics if t)
 
     def chunk_count(self) -> int:
-        return self.collection.count()
+        try:
+            return self.collection.count()
+        except Exception as e:
+            logger.warning("chunk_count failed (stale/corrupt ChromaDB?): %s", e)
+            return 0
 
     # ── Private helpers ───────────────────────────────────────────────────────
 

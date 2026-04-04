@@ -95,6 +95,46 @@ class CanonicalHostMiddleware(BaseHTTPMiddleware):
         return await call_next(request)
 
 
+_PORTAL_PREFIXES: tuple[tuple[str, str], ...] = (
+    ("/admin",      "admin"),
+    ("/dashboard",  "owner"),
+    ("/chat/",      "chat"),
+    ("/explore",    "explore"),
+)
+
+
+class BrowserContextMiddleware(BaseHTTPMiddleware):
+    """
+    Logs browser / locale context on top-level portal page loads.
+
+    Fires only on GET requests that are NOT HTMX partial fetches, matching
+    the four portal entry points: admin, owner, chat, explore.
+
+    Logged fields (land in app.log, correlated with the actor already stamped
+    by ActorContextMiddleware):
+      portal         — admin | owner | chat | explore
+      ua             — full User-Agent string
+      lang           — Accept-Language header (first preference = likely locale)
+    """
+
+    async def dispatch(self, request: Request, call_next):
+        if (
+            request.method == "GET"
+            and "HX-Request" not in request.headers
+        ):
+            path = request.url.path
+            for prefix, portal in _PORTAL_PREFIXES:
+                if path.startswith(prefix):
+                    logger.info(
+                        "PORTAL_VISIT | portal=%s | ua=%s | lang=%s",
+                        portal,
+                        request.headers.get("user-agent", "—"),
+                        request.headers.get("accept-language", "—"),
+                    )
+                    break
+        return await call_next(request)
+
+
 # =============================================================================
 # APPLICATION FACTORY
 # =============================================================================
@@ -136,7 +176,8 @@ app.include_router(billing_router)
 
 # ── Middleware (last added = outermost = runs first) ──────────────────────────
 app.add_middleware(AdminAuthMiddleware)       # innermost  — runs fourth
-app.add_middleware(ActorContextMiddleware)    # middle     — runs third (session already populated)
+app.add_middleware(BrowserContextMiddleware) # runs third — actor already set
+app.add_middleware(ActorContextMiddleware)   # runs second (session already populated)
 app.add_middleware(CanonicalHostMiddleware)
 
 # CSRF protection — exempts GET/HEAD/OPTIONS and /api/* (JSON APIs use no cookies)
@@ -184,7 +225,6 @@ async def startup_event():
     import asyncio
     from app.storage.hf_sync import hf_sync
     from app.services.profile_service import profile_service
-
     # Pull persistent data from HF Dataset (HF Spaces only).
     # Runs in a thread pool so the async event loop is not blocked.
     # On local dev hf_sync.pull() is a no-op — this line is harmless.
@@ -194,11 +234,13 @@ async def startup_event():
     # Start periodic log sync (HF Spaces only)
     hf_sync.start_log_sync_loop(settings.HF_LOG_SYNC_INTERVAL_MINUTES)
 
+    enabled = [p for p in profile_service.list_profiles() if p.status == "enabled"]
+
     logger.info("=" * 60)
     logger.info("AI Profile Platform starting up")
     logger.info("Model: %s", settings.AI_MODEL)
-    enabled = [p for p in profile_service.list_profiles() if p.status == "enabled"]
     logger.info("Enabled profiles: %d", len(enabled))
+    logger.info("Indexes will build on-demand when visitors first arrive")
     logger.info("=" * 60)
 
 

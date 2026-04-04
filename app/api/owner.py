@@ -373,6 +373,7 @@ async def preferences_save(
     request: Request,
     name:                    str = Form(""),
     notify_unanswered_email: str = Form(""),  # checkbox: "on" when checked, absent otherwise
+    notify_lead_email:       str = Form(""),  # checkbox: "on" when checked, absent otherwise
     chat_history_limit:      str = Form(""),  # numeric string or empty
     user: dict = Depends(require_owner),
 ):
@@ -398,6 +399,7 @@ async def preferences_save(
 
     prefs = {
         "notify_unanswered_email": notify_unanswered_email == "on",
+        "notify_lead_email":       notify_lead_email == "on",
         "chat_history_limit":      history_limit,
     }
     if error is None:

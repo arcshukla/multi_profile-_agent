@@ -40,13 +40,25 @@
       <div class="px-6 py-4">
         <h2 class="text-sm font-semibold text-gray-700">Notifications</h2>
       </div>
-      <div class="px-6 py-5">
+      <div class="px-6 py-5 space-y-4">
         <label class="flex items-start gap-3 cursor-pointer">
           <input type="checkbox" name="notify_unanswered_email" value="on" {% if prefs and prefs.notify_unanswered_email %}checked{% endif %}
             class="mt-0.5 h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 focus:ring-offset-0" />
           <div>
             <span class="text-sm font-medium text-gray-700">
               Email when a visitor asks a question the owner couldn't answer
+            </span>
+            <p class="text-xs text-gray-400 mt-0.5">
+              Notifications will be sent to <span class="font-mono">{{ owner_user.email if owner_user else '' }}</span>.
+            </p>
+          </div>
+        </label>
+        <label class="flex items-start gap-3 cursor-pointer">
+          <input type="checkbox" name="notify_lead_email" value="on" {% if prefs and prefs.notify_lead_email %}checked{% endif %}
+            class="mt-0.5 h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 focus:ring-offset-0" />
+          <div>
+            <span class="text-sm font-medium text-gray-700">
+              Email when a visitor shares their contact details (lead captured)
             </span>
             <p class="text-xs text-gray-400 mt-0.5">
               Notifications will be sent to <span class="font-mono">{{ owner_user.email if owner_user else '' }}</span>.

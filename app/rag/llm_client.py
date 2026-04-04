@@ -15,6 +15,7 @@ Groq compatibility:
 """
 
 import os
+import time
 from openai import OpenAI
 
 from app.core.config import settings
@@ -85,15 +86,19 @@ class LLMClient:
         elif response_format:
             params["response_format"] = response_format
 
-        logger.debug(
-            "LLM call | model=%s | session=%s | messages=%d | tools=%s",
-            self.model, get_current_session_id(), len(params["messages"]), bool(tools),
-        )
-
+        t0 = time.perf_counter()
         response = self.client.chat.completions.create(**params)
+        latency_ms = round((time.perf_counter() - t0) * 1000)
 
-        logger.debug(
-            "LLM response | tokens=%s",
+        logger.info(
+            "LLM call | model=%s | session=%s | messages=%d | tools=%s | temp=%.1f | max_tokens=%d | %dms | tokens=%s",
+            self.model,
+            get_current_session_id(),
+            len(params["messages"]),
+            bool(tools),
+            params.get("temperature", 0.0),
+            params.get("max_tokens", 0),
+            latency_ms,
             getattr(getattr(response, "usage", None), "total_tokens", "n/a"),
         )
         return response

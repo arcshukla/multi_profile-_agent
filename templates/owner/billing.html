@@ -48,15 +48,20 @@
 </div>
 
 <!-- ── Voluntary Donation ──────────────────────────────────────────────────── -->
-<div class="mt-6 bg-white border border-gray-200 rounded-xl">
-  <div class="px-5 py-4 border-b border-gray-100 flex items-center gap-2">
-    <svg class="w-4 h-4 text-indigo-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-        d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"/>
+<details class="mt-6 bg-white border border-gray-200 rounded-xl overflow-hidden">
+  <summary class="flex items-center justify-between px-5 py-4 cursor-pointer select-none list-none hover:bg-gray-50 transition-colors">
+    <div class="flex items-center gap-2">
+      <svg class="w-4 h-4 text-indigo-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+          d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"/>
+      </svg>
+      <h2 class="text-sm font-semibold text-gray-700">Voluntary Donation</h2>
+    </div>
+    <svg class="w-4 h-4 text-indigo-500 transition-transform duration-200 details-chevron" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
     </svg>
-    <h2 class="text-sm font-semibold text-gray-700">Voluntary Donation</h2>
-  </div>
-  <div class="p-5">
+  </summary>
+  <div class="border-t border-gray-100 p-5">
     <p class="text-sm text-gray-500 mb-4">
       Appreciate the platform? Make a voluntary contribution. Set an amount, generate a UPI QR, scan and pay — the platform admin will confirm receipt and send you a thank-you.
     </p>
@@ -100,13 +105,29 @@
       {% set don = donations[0] %}
       <div class="flex flex-wrap items-start gap-4 bg-gray-50 border border-gray-200 rounded-xl p-4">
         <div class="bg-white border border-gray-200 rounded-xl p-2 flex-shrink-0">
-          <img src="/owner/billing/donation/qr/{{ don.id }}" alt="Donation QR" class="w-36 h-36 object-contain">
+          <img src="/owner/billing/donation/qr/{{ don.id }}?v={{ don.created_at | replace(':', '') | replace(' ', '') | replace('-', '') }}" alt="Donation QR"
+               id="don-qr-{{ don.id }}"
+               class="w-36 h-36 object-contain"
+               onerror="this.style.display='none'; document.getElementById('don-qr-expired-{{ don.id }}').classList.remove('hidden');">
+          <div id="don-qr-expired-{{ don.id }}" class="hidden w-36 flex flex-col items-center justify-center gap-1.5 py-4 text-center">
+            <svg class="w-8 h-8 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+            </svg>
+            <p class="text-xs text-gray-500 font-medium">QR expired</p>
+            <p class="text-xs text-gray-400">Generate a new one above</p>
+          </div>
         </div>
         <div class="space-y-1.5 text-xs text-gray-600 min-w-0">
           <p class="font-semibold text-gray-800 text-sm">₹{{ "%.2f"|format(don.amount) }}{% if don.note %} · <span class="font-normal text-gray-500">{{ don.note }}</span>{% endif %}</p>
           <p>UPI ID: <code class="font-mono bg-gray-100 px-1 rounded">{{ donation_upi_vpa }}</code></p>
           <p class="text-gray-400">Reference: <code class="font-mono">{{ don.id }}</code></p>
-          <p class="text-gray-400 italic">Scan and pay, then wait for the admin to confirm receipt.</p>
+          <div class="mt-1.5 bg-indigo-50 border border-indigo-100 rounded-lg px-2.5 py-1.5">
+            <p class="text-indigo-700">Scan with PhonePe, GPay, Paytm, or any UPI app and pay the amount shown.</p>
+          </div>
+          <div class="mt-1.5 bg-green-50 border border-green-200 rounded-lg px-2.5 py-1.5">
+            <p class="text-green-700 font-semibold text-xs mb-0.5">Already paid?</p>
+            <p class="text-green-700">Your contribution is noted. Admin will confirm receipt within 1 working day and send you a thank-you email.</p>
+          </div>
         </div>
       </div>
       {% endif %}
@@ -127,7 +148,7 @@
             {% if don.status.value == "confirmed" %}
             <span class="bg-green-100 text-green-700 font-semibold px-2 py-0.5 rounded-full">Confirmed</span>
             {% else %}
-            <span class="bg-amber-100 text-amber-700 font-semibold px-2 py-0.5 rounded-full">Pending</span>
+            <span class="bg-amber-100 text-amber-700 font-semibold px-2 py-0.5 rounded-full">Awaiting Confirmation</span>
             {% endif %}
           </span>
           <span class="text-gray-400 flex-shrink-0">{{ (don.confirmed_at[:10] if don.confirmed_at else don.created_at[:10]) }}</span>
@@ -138,7 +159,11 @@
     {% endif %}
 
   </div>
-</div>
+</details>
+
+<style>
+  details[open] .details-chevron { transform: rotate(180deg); }
+</style>
 
 <!-- ── Paid tier ──────────────────────────────────────────────────────────── -->
 {% else %}
@@ -187,7 +212,7 @@
       <div class="flex flex-col items-center gap-3">
         <!-- QR image — retries once (lazy server-side regen), then shows button -->
         <div class="bg-white border border-gray-200 rounded-xl p-2">
-          <img src="/owner/billing/qr/{{ inv.id }}"
+          <img src="/owner/billing/qr/{{ inv.id }}?v={{ inv.created_at | replace(':', '') | replace(' ', '') | replace('-', '') }}"
                alt="UPI QR Code"
                id="qr-img-{{ inv.id }}"
                class="w-40 h-40 object-contain"

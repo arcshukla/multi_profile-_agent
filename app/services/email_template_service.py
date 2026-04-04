@@ -37,6 +37,7 @@ logger = get_logger(__name__)
 
 _STORE        = SYSTEM_DIR   / "email_templates.json"   # admin overrides (HF-synced)
 _DEFAULTS_FILE = DEFAULTS_DIR / "email_templates.json"  # shipped defaults (repo)
+_LAYOUT_FILE   = DEFAULTS_DIR / "email_layout.html"     # shared logo/wrapper (never overridden)
 
 
 def _load_defaults() -> dict[str, dict]:
@@ -144,6 +145,50 @@ class EmailTemplateService:
         except Exception as e:
             logger.error("Failed to save email templates: %s", e)
             return False
+
+    def wrap_layout(self, body_html_fragment: str) -> str:
+        """
+        Wrap an inner body_html fragment with the shared email layout
+        (ProfileSpark logo header, outer table, background).
+
+        The layout file uses a single ``{body_content}`` placeholder.
+        All other ``{placeholder}`` tokens in the fragment are preserved
+        so callers can still call ``.format(**vars_)`` afterwards.
+        """
+        try:
+            layout = _LAYOUT_FILE.read_text(encoding="utf-8")
+            return layout.replace("{body_content}", body_html_fragment)
+        except Exception as e:
+            logger.warning("email_layout.html unreadable, sending fragment as-is: %s", e)
+            return body_html_fragment
+
+    def render(self, name: str, vars_: dict) -> dict | None:
+        """
+        Fetch template *name*, substitute *vars_* into all text fields, and
+        wrap body_html with the shared email layout.
+
+        Returns a dict with keys ``subject``, ``body_text``, ``body_html``
+        ready to hand directly to ``sendgrid_service.send()``.
+        Returns None if the template name is unknown.
+
+        All rendering is done here so callers (notification_service) only need
+        to assemble a vars dict and dispatch — they never touch format() or the
+        layout wrapper.
+        """
+        tmpl = self.get(name)
+        if tmpl is None:
+            logger.warning("render: unknown email template '%s'", name)
+            return None
+        try:
+            fragment   = tmpl["body_html"].format(**vars_)
+            return {
+                "subject":   tmpl["subject"].format(**vars_),
+                "body_text": tmpl["body_text"].format(**vars_),
+                "body_html": self.wrap_layout(fragment),
+            }
+        except KeyError as e:
+            logger.error("render: missing placeholder %s in template '%s'", e, name)
+            return None
 
 
 def _copy(d: dict) -> dict:

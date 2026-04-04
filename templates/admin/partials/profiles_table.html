@@ -1,8 +1,22 @@
 <!-- Partial: profiles table rows — rendered into #profiles-table -->
 {% if profiles %}
+<!-- Index Selected toolbar — hidden until a checkbox is ticked -->
+<div id="index-toolbar" class="hidden px-5 py-2.5 bg-indigo-50 border-b border-indigo-100 flex items-center gap-3">
+  <span id="index-toolbar-count" class="text-xs text-indigo-700 font-medium"></span>
+  <button onclick="indexSelected()"
+    class="text-xs bg-indigo-600 hover:bg-indigo-700 text-white font-medium px-3 py-1.5 rounded-lg transition-colors">
+    Index Selected
+  </button>
+  <button onclick="clearIndexSelection()" class="text-xs text-indigo-500 hover:text-indigo-700">Clear</button>
+</div>
+
 <table class="w-full text-sm">
   <thead class="bg-gray-50 border-b border-gray-200">
     <tr>
+      <th class="px-4 py-3 w-8">
+        <input type="checkbox" id="index-select-all" onchange="toggleAllIndexCbs(this)"
+          class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500" title="Select all">
+      </th>
       <th class="text-left px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Name</th>
       <th class="text-left px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Slug</th>
       <th class="text-left px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Status</th>
@@ -14,6 +28,10 @@
   <tbody class="divide-y divide-gray-100">
     {% for p in profiles %}
     <tr class="hover:bg-gray-50 transition-colors" id="row-{{ p.slug }}">
+      <td class="px-4 py-3.5">
+        <input type="checkbox" class="profile-index-cb rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+          value="{{ p.slug }}" onchange="updateIndexToolbar()">
+      </td>
       <td class="px-5 py-3.5 font-medium text-gray-900">
         <div class="flex items-center gap-2.5">
           {% if p.has_photo %}
@@ -60,6 +78,63 @@
     {% endfor %}
   </tbody>
 </table>
+
+<script>
+function updateIndexToolbar() {
+  const checked = document.querySelectorAll('.profile-index-cb:checked');
+  const toolbar = document.getElementById('index-toolbar');
+  const count   = document.getElementById('index-toolbar-count');
+  toolbar.classList.toggle('hidden', checked.length === 0);
+  count.textContent = checked.length === 1 ? '1 profile selected' : `${checked.length} profiles selected`;
+  // Sync select-all state
+  const all = document.querySelectorAll('.profile-index-cb');
+  document.getElementById('index-select-all').checked = all.length > 0 && checked.length === all.length;
+}
+
+function toggleAllIndexCbs(master) {
+  document.querySelectorAll('.profile-index-cb').forEach(cb => cb.checked = master.checked);
+  updateIndexToolbar();
+}
+
+function clearIndexSelection() {
+  document.querySelectorAll('.profile-index-cb').forEach(cb => cb.checked = false);
+  document.getElementById('index-select-all').checked = false;
+  updateIndexToolbar();
+}
+
+async function indexSelected() {
+  const slugs = [...document.querySelectorAll('.profile-index-cb:checked')].map(cb => cb.value);
+  if (!slugs.length) return;
+
+  const btn = document.querySelector('#index-toolbar button');
+  btn.disabled = true;
+  btn.textContent = 'Starting…';
+
+  let ok = 0, failed = 0;
+  for (const slug of slugs) {
+    try {
+      const res = await fetch(`/api/profiles/${slug}/index`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ force: false }),
+      });
+      if (res.ok) { ok++; } else { failed++; console.warn(`Index trigger failed for ${slug}:`, res.status); }
+    } catch (err) {
+      failed++;
+      console.error(`Index trigger error for ${slug}:`, err);
+    }
+  }
+
+  btn.disabled = false;
+  btn.textContent = 'Index Selected';
+  clearIndexSelection();
+
+  const msg = failed === 0
+    ? `Indexing started for ${ok} profile${ok !== 1 ? 's' : ''} — check each profile's Manage page for status.`
+    : `${ok} started, ${failed} failed — check browser console for details.`;
+  alert(msg);
+}
+</script>
 {% else %}
 <div class="p-12 text-center">
   <div class="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center mx-auto mb-3">

@@ -19,7 +19,7 @@ pydantic-settings>=2.3.0
 openai>=1.30.0
 
 # Vector database
-chromadb>=0.5.0
+chromadb==0.5.23
 
 # Document reading
 pymupdf>=1.24.0        # PDF support (fast)

@@ -38,7 +38,14 @@ indexing_log = get_indexing_logger()
 _engines: dict[str, SemanticRAGEngine] = {}     # slug → engine
 _indexing_locks: dict[str, threading.Lock] = {}  # slug → lock
 _state_lock = threading.Lock()                   # protects _engines / _indexing_locks
-_currently_indexing: set[str] = set()            # slugs currently being indexed
+_currently_indexing: set[str] = set()            # slugs actively being indexed right now
+_startup_pending: set[str] = set()              # slugs queued for on-demand index (triggered, not yet running)
+
+# Cache for _last_indexed_entry() — reading the full index_history.log on every
+# get_status() call (called once per profile on every admin list page) is the
+# single biggest performance bottleneck.  Cached per slug; invalidated when
+# _record_event() records a new success entry for that slug.
+_last_entry_cache: dict[str, Optional[dict]] = {}   # slug → {timestamp, duration_seconds} or None
 
 
 def _get_lock(slug: str) -> threading.Lock:
@@ -46,6 +53,40 @@ def _get_lock(slug: str) -> threading.Lock:
         if slug not in _indexing_locks:
             _indexing_locks[slug] = threading.Lock()
         return _indexing_locks[slug]
+
+
+def is_warming_up(slug: str) -> bool:
+    """True if this profile has an on-demand index in flight (queued or actively running)."""
+    return slug in _startup_pending or slug in _currently_indexing
+
+
+def trigger_on_demand(slug: str) -> None:
+    """
+    Trigger background indexing when a visitor arrives at an un-indexed profile.
+
+    Idempotent and safe to call from any code path (welcome, chat, etc.):
+      - Already in flight → returns immediately.
+      - No documents uploaded → skips silently (nothing to index).
+      - Otherwise marks as pending, spawns a daemon thread, and returns.
+
+    The pending flag is cleared automatically by index_profile's finally block
+    once indexing finishes (success or failure).
+    """
+    if slug in _startup_pending or slug in _currently_indexing:
+        logger.debug("On-demand index: '%s' already in flight — skipping", slug)
+        return
+    fs = ProfileFileStorage(slug)
+    if fs.document_count() == 0:
+        logger.debug("On-demand index: '%s' has no documents — skipping", slug)
+        return
+    _startup_pending.add(slug)
+    logger.info("On-demand index: triggered for '%s' (first visitor arrival)", slug)
+    threading.Thread(
+        target=index_service.index_profile,
+        args=(slug, False),
+        daemon=True,
+        name=f"on-demand-index-{slug}",
+    ).start()
 
 
 class IndexService:
@@ -75,19 +116,25 @@ class IndexService:
             logger.warning("get_engine: profile folder not found for '%s'", slug)
             return None
 
-        engine = build_profile_rag(
-            db_path=fs.chroma_path(),
-            slug=slug,
-            on_tokens=lambda op, p, c, t: token_service.record(slug, op, p, c, t),
-        )
+        try:
+            engine = build_profile_rag(
+                db_path=fs.chroma_path(),
+                slug=slug,
+                on_tokens=lambda op, p, c, t: token_service.record(slug, op, p, c, t),
+            )
+        except Exception as e:
+            logger.error("get_engine: failed to build RAG engine for '%s': %s", slug, e)
+            return None
         with _state_lock:
             _engines[slug] = engine
         return engine
 
     def evict_engine(self, slug: str) -> None:
-        """Remove a cached engine (call after reindex or deletion)."""
+        """Remove a cached engine and close its ChromaDB connection."""
         with _state_lock:
-            _engines.pop(slug, None)
+            engine = _engines.pop(slug, None)
+        if engine is not None:
+            engine.close()
 
     # ── Indexing ──────────────────────────────────────────────────────────────
 
@@ -104,7 +151,7 @@ class IndexService:
         """
         lock = _get_lock(slug)
         if not lock.acquire(blocking=False):
-            logger.warning("Indexing already in progress for '%s'", slug)
+            logger.info("Indexing already in progress for '%s' — returning running status", slug)
             return {"status": INDEX_STATUS_RUNNING, "document_count": 0, "duration_seconds": 0}
 
         _currently_indexing.add(slug)
@@ -114,6 +161,7 @@ class IndexService:
         finally:
             lock.release()
             _currently_indexing.discard(slug)
+            _startup_pending.discard(slug)
 
     def _run_indexing(self, slug: str, force: bool) -> dict:
         fs = ProfileFileStorage(slug)
@@ -176,20 +224,37 @@ class IndexService:
         Returns dict with: status, chunk_count, document_count, last_indexed
         """
         if self.is_indexing(slug):
-            return {"status": INDEX_STATUS_RUNNING, "chunk_count": 0, "document_count": 0, "last_indexed": None}
+            fs = ProfileFileStorage(slug)
+            return {"status": INDEX_STATUS_RUNNING, "chunk_count": 0, "document_count": fs.document_count(), "last_indexed": None}
 
         fs = ProfileFileStorage(slug)
         engine = self.get_engine(slug)
-        chunk_count = engine.chunk_count() if engine else 0
+        try:
+            chunk_count = engine.chunk_count() if engine else 0
+        except Exception as e:
+            logger.warning(
+                "ChromaDB error reading chunk_count for %s: %s — treating as not_indexed",
+                slug, e,
+            )
+            chunk_count = 0
         doc_count = fs.document_count()
-        last_indexed = self._last_indexed_timestamp(slug)
+        last_entry = self._last_indexed_entry(slug)
+        last_indexed = last_entry["timestamp"] if last_entry else None
+        last_duration = last_entry["duration_seconds"] if last_entry else None
 
-        status = INDEX_STATUS_SUCCESS if chunk_count > 0 else "not_indexed"
+        if chunk_count > 0:
+            status = INDEX_STATUS_SUCCESS
+        elif last_indexed:
+            # Indexing ran but produced 0 chunks (LLM split may have failed)
+            status = "empty"
+        else:
+            status = "not_indexed"
         return {
-            "status": status,
-            "chunk_count": chunk_count,
-            "document_count": doc_count,
-            "last_indexed": last_indexed,
+            "status":           status,
+            "chunk_count":      chunk_count,
+            "document_count":   doc_count,
+            "last_indexed":     last_indexed,
+            "duration_seconds": last_duration,
         }
 
     # ── History ───────────────────────────────────────────────────────────────
@@ -217,14 +282,53 @@ class IndexService:
         except Exception as e:
             logger.error("Failed to write index history: %s", e)
 
+        # Update the per-slug cache immediately so get_status() doesn't need to
+        # re-scan the full log file on the very next request.
+        if status == INDEX_STATUS_SUCCESS:
+            _last_entry_cache[slug] = {
+                "timestamp":        entry["timestamp"],
+                "duration_seconds": duration,
+            }
+        elif status == "purged":
+            _last_entry_cache[slug] = None
+
         return entry
 
-    def _last_indexed_timestamp(self, slug: str) -> Optional[str]:
-        """Scan index_history.log for the most recent successful entry for this slug."""
+    def clear_slug_history(self, slug: str) -> None:
+        """Write a purge sentinel into index_history.log so a same-slug recreate starts clean."""
+        history_file = settings.INDEX_HISTORY_FILE
+        try:
+            history_file.parent.mkdir(parents=True, exist_ok=True)
+            entry = {
+                "timestamp":    datetime.now(timezone.utc).isoformat(),
+                "profile_slug": slug,
+                "status":       "purged",
+            }
+            with open(history_file, "a", encoding="utf-8") as f:
+                f.write(json.dumps(entry) + "\n")
+            _last_entry_cache[slug] = None   # invalidate so next get_status() reflects the purge
+            logger.info("Index history purge marker written for '%s'", slug)
+        except Exception as e:
+            logger.warning("Failed to write purge marker for '%s': %s", slug, e)
+
+    def _last_indexed_entry(self, slug: str) -> Optional[dict]:
+        """
+        Return the most recent successful index entry for this slug.
+        Result is served from _last_entry_cache when available — avoids scanning
+        the full index_history.log on every get_status() call (the main perf bottleneck
+        on admin list pages that call this once per profile).
+        Cache is populated by _record_event() on indexing completion and on first miss.
+        Resets to None when a 'purged' sentinel is encountered.
+        """
+        if slug in _last_entry_cache:
+            return _last_entry_cache[slug]
+
+        # Cache miss — scan the log file once and populate the cache entry.
         history_file = settings.INDEX_HISTORY_FILE
         if not history_file.exists():
+            _last_entry_cache[slug] = None
             return None
-        last = None
+        last: Optional[dict] = None
         try:
             for line in history_file.read_text(encoding="utf-8").splitlines():
                 line = line.strip()
@@ -232,12 +336,21 @@ class IndexService:
                     continue
                 try:
                     entry = json.loads(line)
-                    if entry.get("profile_slug") == slug and entry.get("status") == INDEX_STATUS_SUCCESS:
-                        last = entry.get("timestamp")
+                    if entry.get("profile_slug") != slug:
+                        continue
+                    status = entry.get("status")
+                    if status == INDEX_STATUS_SUCCESS:
+                        last = {
+                            "timestamp":        entry.get("timestamp"),
+                            "duration_seconds": entry.get("duration_seconds"),
+                        }
+                    elif status == "purged":
+                        last = None  # reset — prior incarnation of this slug
                 except json.JSONDecodeError:
                     continue
         except Exception as e:
-            logger.warning("Could not read index history: %s", e)
+            logger.warning("Could not read index history for '%s': %s", slug, e)
+        _last_entry_cache[slug] = last
         return last
 
     def get_history(self, slug: Optional[str] = None, limit: int = 100) -> list[dict]:

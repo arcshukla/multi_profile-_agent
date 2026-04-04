@@ -399,7 +399,7 @@
         hx-post="/api/profiles/{{ profile.slug }}/index"
         hx-ext="json-enc" hx-vals='{"force": false}'
         hx-swap="none"
-        hx-on::after-request="showToast('Indexing started!'); setTimeout(()=>htmx.trigger('#index-status-{{ profile.slug }}','load'),2000);"
+        hx-on::after-request="showToast('Indexing started!'); setTimeout(()=>htmx.ajax('GET','/admin/manage/{{ profile.slug }}/index-status',{target:'#index-status-{{ profile.slug }}',swap:'innerHTML'}),400);"
         class="text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 px-4 py-2 rounded-lg transition-colors">
         Index Documents
       </button>
@@ -407,7 +407,7 @@
         hx-post="/api/profiles/{{ profile.slug }}/index/force"
         hx-confirm="Force reindex will wipe the existing vector index. Continue?"
         hx-swap="none"
-        hx-on::after-request="showToast('Force reindex started!'); setTimeout(()=>htmx.trigger('#index-status-{{ profile.slug }}','load'),2000);"
+        hx-on::after-request="showToast('Force reindex started!'); setTimeout(()=>htmx.ajax('GET','/admin/manage/{{ profile.slug }}/index-status',{target:'#index-status-{{ profile.slug }}',swap:'innerHTML'}),400);"
         class="text-sm font-medium text-red-600 bg-red-50 hover:bg-red-100 px-4 py-2 rounded-lg transition-colors">
         Force Reindex
       </button>

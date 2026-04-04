@@ -149,6 +149,25 @@ class ProfileService:
         except Exception as e:
             logger.warning("Failed to evict engine cache for '%s': %s", slug, e)
 
+        # Clear system-level records so a same-slug recreate starts clean
+        try:
+            from app.services.token_service import token_service
+            token_service.delete_profile(slug)
+        except Exception as e:
+            logger.warning("Failed to clear token data for '%s': %s", slug, e)
+
+        try:
+            from app.services.billing_service import billing_service
+            billing_service.delete_profile(slug)
+        except Exception as e:
+            logger.warning("Failed to clear billing data for '%s': %s", slug, e)
+
+        try:
+            from app.services.index_service import index_service
+            index_service.clear_slug_history(slug)
+        except Exception as e:
+            logger.warning("Failed to write index history purge marker for '%s': %s", slug, e)
+
         # Delete filesystem
         ProfileFileStorage(slug).delete_all()
 

@@ -29,9 +29,8 @@
               <button
                 hx-delete="/api/profiles/{{ p.slug }}"
                 hx-confirm="Permanently delete '{{ p.name }}' and ALL files? This cannot be undone."
-                hx-target="#deleted-row-{{ p.slug }}"
-                hx-swap="outerHTML"
-                hx-on::after-request="showToast('Profile permanently deleted', 'error')"
+                hx-swap="none"
+                hx-on::after-request="if(event.detail.successful){ document.getElementById('deleted-row-{{ p.slug }}').remove(); showToast('Profile permanently deleted', 'error'); }"
                 class="text-xs font-medium text-red-600 bg-red-50 hover:bg-red-100 px-2.5 py-1 rounded-lg transition-colors">
                 Delete Forever
               </button>

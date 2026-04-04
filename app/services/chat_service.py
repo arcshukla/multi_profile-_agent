@@ -17,6 +17,7 @@ Per-profile state (engine, prompts) is looked up on each request.
 
 import json
 import re
+import time
 from datetime import datetime, timezone
 from typing import Optional
 
@@ -28,7 +29,7 @@ from app.core.logging_config import (
 )
 from app.services.token_service import token_service
 from app.models.api_models import ChatMessage, ChatResponse, TokenUsage
-from app.services.index_service import index_service
+from app.services.index_service import index_service, is_warming_up, trigger_on_demand
 from app.services.prompt_service import prompt_service
 from app.rag.llm_client import LLMClient
 from app.storage.file_storage import ProfileFileStorage
@@ -140,6 +141,7 @@ class ChatService:
         Returns:
             ChatResponse with answer, followup questions, and full token usage.
         """
+        t0    = time.perf_counter()
         sid   = session_id or new_session_id()
         set_current_session_id(sid)
         slog  = get_session_logger(logger, sid)
@@ -158,15 +160,50 @@ class ChatService:
         trimmed_history = history[-history_limit:]
         history_trimmed = len(history) > history_limit
 
-        # Get RAG engine
-        engine = index_service.get_engine(slug)
-        if engine is None:
-            slog.warning("No engine for slug='%s' — profile not indexed", slug)
+        # If an on-demand index is already in flight for this profile, tell the visitor
+        if is_warming_up(slug):
+            slog.info("Chat blocked | slug=%s | reason=on-demand index in flight", slug)
             return ChatResponse(
-                answer     = "Profile not found or not indexed yet.",
-                followups  = prompt_service.fallback_followups(),
+                answer     = "I'm getting ready for you — loading my knowledge base. Please try again in 2 minutes.",
+                followups  = [],
                 session_id = sid,
+                warming_up = True,
             )
+
+        # Get RAG engine — get_engine() always returns a non-None engine if the profile
+        # folder exists, even when ChromaDB is empty (0 chunks). So we must check both
+        # engine is None (folder missing) AND chunk_count == 0 (folder exists, not indexed).
+        engine = index_service.get_engine(slug)
+        if engine is None or engine.chunk_count() == 0:
+            # trigger_on_demand is idempotent and skips silently if already in flight or no docs
+            trigger_on_demand(slug)
+            if is_warming_up(slug):
+                # on-demand was just triggered (or was already running)
+                slog.info("Chat blocked | slug=%s | reason=index building on-demand", slug)
+                return ChatResponse(
+                    answer     = "I'm getting ready for you — loading my knowledge base. Please try again in 2 minutes.",
+                    followups  = [],
+                    session_id = sid,
+                    warming_up = True,
+                )
+            else:
+                # trigger_on_demand skipped — no documents uploaded
+                slog.warning("Chat blocked | slug=%s | reason=no documents uploaded", slug)
+                if background_tasks:
+                    background_tasks.add_task(
+                        notification_service.notify_incomplete_profile, slug, sid,
+                    )
+                else:
+                    notification_service.notify_incomplete_profile(slug, sid)
+                return ChatResponse(
+                    answer     = (
+                        "This profile hasn't been set up fully yet. "
+                        "I've notified the profile owner and the platform administrator. "
+                        "Please check back again shortly."
+                    ),
+                    followups  = [],
+                    session_id = sid,
+                )
 
         # RAG retrieval (intent classification tokens tracked inside engine)
         context_chunks = engine.retrieve(message, k=4)
@@ -205,13 +242,17 @@ class ChatService:
         # Persist token usage for admin dashboard (synchronous — fast local write)
         token_service.record(slug, "query", budget.prompt, budget.completion, budget.total)
 
+        latency_ms = round((time.perf_counter() - t0) * 1000)
+
         # Structured chat event — defer to background so HTTP response is not blocked
         event = {
             "ts":           datetime.now(timezone.utc).isoformat(),
             "session_id":   sid,
             "question":     message,
             "answer":       answer,
+            "followups":    final_followups,
             "tokens":       budget.total,
+            "latency_ms":   latency_ms,
             "was_answered": _was_answered,
         }
         if background_tasks is not None:
@@ -221,8 +262,8 @@ class ChatService:
 
         # Structured logging
         slog.info(
-            "Turn complete | tokens=%d (prompt=%d compl=%d calls=%d) | history_trimmed=%s",
-            budget.total, budget.prompt, budget.completion, budget.calls, history_trimmed,
+            "Turn complete | tokens=%d (prompt=%d compl=%d calls=%d) | %dms | history_trimmed=%s",
+            budget.total, budget.prompt, budget.completion, budget.calls, latency_ms, history_trimmed,
         )
         chat_log.info(
             "slug=%s | tokens=%d | Q=%s | A=%s",
@@ -243,14 +284,21 @@ class ChatService:
 
     def get_initial_followups(self, slug: str) -> list[str]:
         """Generate opening followup questions shown when the chat UI loads."""
-        engine = index_service.get_engine(slug)
-        if not engine or engine.chunk_count() == 0:
-            logger.info("get_initial_followups: no index for '%s' — using fallbacks", slug)
-            return prompt_service.fallback_followups()
+        try:
+            engine = index_service.get_engine(slug)
+            if not engine or engine.chunk_count() == 0:
+                # Kick off on-demand indexing at page load so it's ready before the first message.
+                # Return empty — generic fallbacks are irrelevant to this profile's content.
+                trigger_on_demand(slug)
+                logger.info("get_initial_followups: no index for '%s' — returning empty", slug)
+                return []
 
-        snapshot = engine.build_snapshot()
-        if not snapshot.strip():
-            return prompt_service.fallback_followups()
+            snapshot = engine.build_snapshot()
+            if not snapshot.strip():
+                return prompt_service.fallback_followups()
+        except Exception as e:
+            logger.warning("get_initial_followups: engine error for '%s': %s — returning empty", slug, e)
+            return []
 
         from app.services.profile_service import profile_service
         name   = profile_service.get_display_name(slug)
@@ -354,14 +402,20 @@ class ChatService:
 
     def _dispatch_tool(self, name: str, args: dict, slug: str) -> dict:
         plog = get_profile_logger(slug)
+        # Log args before dispatch (mask nothing — these are non-sensitive tool inputs)
+        safe_args = {k: v for k, v in args.items() if k != "session_id"}
+        plog.info("Tool dispatch | name=%s | args=%s", name, json.dumps(safe_args, default=str))
+
         if name == "record_user_details":
             email      = args.get("email", "")
             name_val   = args.get("name", "")
             session_id = args.get("session_id", "")
             plog.info("Lead captured | email=%s", email)
             chat_log.info("LEAD | slug=%s | email=%s", slug, email)
-            notification_service.notify_lead(name=name_val, email=email, session_id=session_id)
-            return {"status": "lead recorded"}
+            notification_service.notify_lead(name=name_val, email=email, session_id=session_id, slug=slug)
+            result = {"status": "lead recorded"}
+            plog.info("Tool result | name=%s | result=%s", name, result)
+            return result
 
         if name == "record_unknown_question":
             question   = args.get("question", "")
@@ -372,7 +426,9 @@ class ChatService:
             notification_service.notify_unknown_question(
                 question=question, session_id=session_id, slug=slug
             )
-            return {"status": "unknown recorded"}
+            result = {"status": "unknown recorded"}
+            plog.info("Tool result | name=%s | result=%s", name, result)
+            return result
 
         logger.warning("Unrecognised tool called: '%s' — ignoring", name)
         return {"status": "unknown tool"}

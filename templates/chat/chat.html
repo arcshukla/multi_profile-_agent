@@ -170,9 +170,31 @@
         {{ profile.name[0] }}
       </div>
       {% endif %}
-      <div>
+      <div class="flex-1 min-w-0">
         <p class="font-bold text-base leading-snug" style="color: var(--color-text);">Hi — I'm {{ profile.name }}'s AI avatar.</p>
         <p class="text-sm mt-0.5" style="color: var(--color-text); opacity: 0.6;">Ask me anything about {{ profile.name }}'s professional journey.</p>
+      </div>
+      <!-- ── Platform badge ── -->
+      <div class="shrink-0 flex flex-col items-center justify-center select-none" style="gap:4px;" title="Built on ProfileSpark">
+        <div class="flex items-center" style="gap:8px;">
+          <!-- Spark icon -->
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style="flex-shrink:0;">
+            <defs>
+              <linearGradient id="ps-grad-chat" x1="0" y1="0" x2="1" y2="1">
+                <stop offset="0%" stop-color="#6366f1"/>
+                <stop offset="100%" stop-color="#a855f7"/>
+              </linearGradient>
+            </defs>
+            <path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 17l-6.2 4.3 2.4-7.4L2 9.4h7.6L12 2z"
+              fill="url(#ps-grad-chat)"/>
+          </svg>
+          <span style="font-size:19px; font-weight:800; letter-spacing:-0.02em; line-height:1; background:linear-gradient(135deg,#6366f1,#a855f7); -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text;">
+            ProfileSpark
+          </span>
+        </div>
+        <span style="font-size:11px; font-weight:500; letter-spacing:0.15em; text-transform:uppercase; color:#9ca3af; line-height:1;">
+          Career Intelligence
+        </span>
       </div>
     </div>
 
@@ -308,6 +330,13 @@ let sessionId = "";
 // Voice recognition state
 let recognition = null;
 let recognizing = false;
+let silenceTimer = null;
+let finalTranscript = '';
+
+function resetSilenceTimer() {
+  if (silenceTimer) clearTimeout(silenceTimer);
+  silenceTimer = setTimeout(() => stopRecognition(), 2500);
+}
 
 function toggleMic() {
   const micBtn = document.getElementById('mic-btn');
@@ -330,33 +359,36 @@ function startRecognition() {
     return;
   }
 
+  finalTranscript = '';
   recognition = new SpeechRecognition();
   recognition.lang = 'en-US';
-  recognition.interimResults = false;
+  recognition.interimResults = true;
   recognition.maxAlternatives = 1;
-  recognition.continuous = false; // Stop after user stops speaking
-
-  // Stop recognition when user stops speaking
-  recognition.onspeechend = function() {
-    recognition.stop();
-  };
+  recognition.continuous = true; // Tolerate pauses; silence timer handles auto-stop
 
   recognition.onstart = function() {
     recognizing = true;
     setMicActive(true);
-    showVoiceWarning('Listening... Speak now.', 'info');
+    showVoiceWarning('Listening\u2026 speak naturally, pause when done.', 'info');
     document.getElementById('mic-btn').disabled = false;
+    resetSilenceTimer();
   };
   recognition.onresult = function(event) {
-    if (event.results.length > 0) {
-      const transcript = event.results[0][0].transcript;
-      document.getElementById('chat-input').value = transcript;
-      updateCharCount(document.getElementById('chat-input'));
-      showVoiceWarning('Voice captured. You can edit before sending.', 'success');
+    let interim = '';
+    for (let i = event.resultIndex; i < event.results.length; i++) {
+      if (event.results[i].isFinal) {
+        finalTranscript += event.results[i][0].transcript + ' ';
+      } else {
+        interim += event.results[i][0].transcript;
+      }
     }
-    stopRecognition();
+    const input = document.getElementById('chat-input');
+    input.value = (finalTranscript + interim).trim();
+    updateCharCount(input);
+    resetSilenceTimer(); // reset 2.5 s timer on every speech event
   };
   recognition.onerror = function(event) {
+    if (silenceTimer) clearTimeout(silenceTimer);
     let msg = 'Voice input error.';
     let action = '';
     const micBtn = document.getElementById('mic-btn');
@@ -375,12 +407,14 @@ function startRecognition() {
     stopRecognition();
   };
   recognition.onend = function() {
+    if (silenceTimer) clearTimeout(silenceTimer);
     recognizing = false;
     setMicActive(false);
     document.getElementById('mic-btn').disabled = false;
-    // If no result was captured, show info
     const input = document.getElementById('chat-input');
-    if (!input.value) {
+    if (input.value) {
+      showVoiceWarning('Voice captured. You can edit before sending.', 'success');
+    } else {
       showVoiceWarning('No speech detected or input was empty. Try again.');
     }
   };
@@ -388,10 +422,12 @@ function startRecognition() {
 }
 
 function stopRecognition() {
+  if (silenceTimer) { clearTimeout(silenceTimer); silenceTimer = null; }
   if (recognition) {
     recognition.stop();
     recognition = null;
   }
+  finalTranscript = '';
   recognizing = false;
   setMicActive(false);
 }
@@ -571,7 +607,12 @@ async function sendMessage(messageOverride) {
     const data = await res.json();
     hideTyping();
 
-    if (data.answer) {
+    if (data.warming_up) {
+      // Profile index is still building — show inline notice, don't pollute history
+      addMessage("assistant", data.answer);
+      // Remove the user's turn from history too so they can retry cleanly
+      history.pop();
+    } else if (data.answer) {
       // Show a one-time notice when the server trimmed the history window
       if (data.history_trimmed && !sessionId) {
         const noticeDiv = document.createElement("div");

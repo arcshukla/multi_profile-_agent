@@ -103,11 +103,25 @@ function emailTplShowCode(name) {
   document.getElementById('btn-preview-' + name).classList.add('bg-white', 'text-gray-500');
 }
 
-function emailTplShowPreview(name) {
-  const ta = document.getElementById('body-html-' + name);
+async function emailTplShowPreview(name) {
+  const ta    = document.getElementById('body-html-' + name);
   const frame = document.getElementById('preview-' + name);
-  // Write current textarea content into sandboxed iframe
-  frame.srcdoc = ta.value;
+
+  // POST fragment to server — response is the fully layout-wrapped HTML
+  const csrfMatch = document.cookie.split(';').find(c => c.trim().startsWith('csrftoken='));
+  const csrfToken = csrfMatch ? csrfMatch.split('=')[1].trim() : '';
+  const form = new FormData();
+  form.append('body_html', ta.value);
+  try {
+    const resp = await fetch('/admin/system/email/preview', {
+      method: 'POST', body: form,
+      headers: { 'x-csrftoken': csrfToken },
+    });
+    frame.srcdoc = await resp.text();
+  } catch (e) {
+    frame.srcdoc = '<p style="font-family:sans-serif;color:red;padding:16px;">Preview failed: ' + e + '</p>';
+  }
+
   ta.classList.add('hidden');
   frame.classList.remove('hidden');
   document.getElementById('btn-preview-' + name).classList.add('bg-indigo-600', 'text-white');

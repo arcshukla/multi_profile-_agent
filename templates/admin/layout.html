@@ -9,20 +9,20 @@
   <nav class="bg-white border-b border-gray-200 shadow-sm">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-14 flex items-center justify-between">
       <div class="flex items-center gap-3">
-        <div class="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center">
-          <svg class="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-              d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/>
-          </svg>
-        </div>
-        <span class="font-semibold text-gray-900 text-sm">AI Profile Platform</span>
+        {% include "partials/profilespark_badge.html" %}
         <span class="text-gray-300">|</span>
         <span class="text-sm text-gray-500">Admin</span>
       </div>
       <!-- Nav right: logged-in user + sign out -->
       <div class="flex items-center gap-3">
         {% if current_user %}
-        <span class="text-sm text-gray-500">{{ current_user.get("name") or current_user.get("email") }}</span>
+        {% set display_name = current_user.get("name") or current_user.get("email") %}
+        <div class="flex items-center gap-2">
+          <div class="w-7 h-7 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-bold text-xs flex-shrink-0">
+            {{ display_name[0] | upper }}
+          </div>
+          <span class="text-sm text-gray-600">{{ display_name }}</span>
+        </div>
         {% endif %}
       <a href="/auth/logout"
         class="flex items-center gap-1.5 text-sm text-gray-400 hover:text-red-500 transition-colors">

@@ -129,7 +129,7 @@ def test_dispatch_tool_record_user_details(monkeypatch, isolate_data_dirs):
     )
     assert result["status"] == "lead recorded"
     mock_notif.notify_lead.assert_called_once_with(
-        name="Visitor", email="visitor@example.com", session_id="ses1"
+        name="Visitor", email="visitor@example.com", session_id="ses1", slug="some-slug"
     )
 
 

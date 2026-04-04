@@ -38,6 +38,7 @@ class ChatResponse(BaseModel):
     session_id:      str        = ""
     tokens_used:     TokenUsage = TokenUsage()
     history_trimmed: bool       = False   # True when earlier messages were dropped per profile limit
+    warming_up:      bool       = False   # True when the profile index is still building after restart
 
 
 # ---------------------------------------------------------------------------
