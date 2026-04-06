@@ -156,6 +156,8 @@ The multi-tenant foundation, the RAG pipeline, the isolation model — they are 
 | **Semantic Indexing** | LLM-powered document splitting and topic extraction — not just character chunking |
 | **Custom Persona** | Write your own system prompt — define how your AI twin speaks about you |
 | **Chat Customization** | Custom header HTML, CSS, welcome message, and follow-up question style |
+| **AI Carousel Theme** | Describe a mood or style in plain English — AI generates a colour theme for your carousel banner, with WCAG contrast enforced in code — never unreadable text |
+| **Carousel Slides** | Up to 5 customisable slides shown above the chat box — standard or quote format — with a live preview and one-click restore to defaults |
 | **Lead Capture** | Visitors who share their email are logged and you're notified via Pushover instantly |
 | **Token Dashboard** | See exactly how many LLM tokens your profile consumes per operation |
 | **Billing Portal** | View invoices, scan UPI QR codes, track payment status |
@@ -464,6 +466,7 @@ Three separate LLM calls happen per chat turn, each tuned independently:
 | **Intent classification** | 0.0 | 200 | Classify query into topic labels — cheap and deterministic |
 | **Document splitting** | 0.1 | 4000 | Extract topic-tagged sections from raw document text |
 | **Follow-up generation** | 0.0 | 300 | Generate 3 contextually relevant next questions |
+| **AI Carousel Theme** | 0.7 | 150 | Generate `bg`, `title_color`, `body_color`, `nav_color` from an English mood description — WCAG contrast enforced post-generation in Python |
 
 Intent and follow-up calls are cheap (200–300 tokens each). Total cost per chat turn is approximately 1,500–2,000 tokens with GPT-4o-mini — fractions of a cent per conversation.
 
@@ -609,6 +612,7 @@ multiprofile/
 |           +-- header.html            # Custom chat page header HTML
 |           +-- profile.css            # Custom styles
 |           +-- prompts.py             # Owner-editable persona + prompt config
+|           +-- slides.json            # Carousel slides content + AI-generated colour theme
 |
 +-- system/                            # Platform-wide data
 |   +-- profiles.json                  # Profile registry (all profiles + metadata)
@@ -886,6 +890,7 @@ Content-Type: application/json
 | `DEBUG` | `false` | — | FastAPI debug mode |
 | `LOG_LEVEL` | `INFO` | — | Logging verbosity |
 | `RAG_TOP_K` | `4` | — | Chunks to retrieve per query |
+| `CAROUSEL_AI_THEME_ENABLED` | `true` | — | Enable AI colour theme generator in owner portal — set to `false` to disable |
 | `UPI_VPA` | — | Billing | UPI account ID (e.g. `user@okhdfc`) |
 | `UPI_PAYEE_NAME` | `AI Profile Platform` | — | Name shown on UPI receipts |
 | `PLATFORM_FEE_INR` | `10` | — | Monthly platform fee in INR |

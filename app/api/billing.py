@@ -18,7 +18,7 @@ from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 
 from app.auth.dependencies import require_owner
-from app.core.config import STATIC_DIR, TEMPLATES_DIR, settings
+from app.core.config import STATIC_DIR, SYSTEM_DIR, TEMPLATES_DIR, settings
 from app.models.billing_models import BillingTier
 from app.services.billing_service import billing_service
 
@@ -111,7 +111,7 @@ def serve_qr(request: Request, invoice_id: str, user: dict = Depends(require_own
     except ValueError:
         pass  # malformed due_date: serve anyway
 
-    qr_file = STATIC_DIR / inv.qr_path
+    qr_file = SYSTEM_DIR / inv.qr_path
     if not qr_file.exists():
         # Lazy regeneration (HF Spaces restart / first-time QR failure)
         billing_service.regenerate_qr(slug, safe_id)
@@ -185,7 +185,7 @@ def serve_donation_qr(
     if not rec.qr_path:
         return HTMLResponse("No QR for this donation", status_code=404)
 
-    qr_file = STATIC_DIR / rec.qr_path
+    qr_file = SYSTEM_DIR / rec.qr_path
     if not qr_file.exists():
         return HTMLResponse("QR image not available", status_code=404)
 

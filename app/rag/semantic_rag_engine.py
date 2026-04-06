@@ -116,10 +116,14 @@ class SemanticRAGEngine:
     def close(self) -> None:
         """Release the ChromaDB connection. Call before wiping the DB directory."""
         try:
-            self._client._system.stop()
+            if getattr(self._client._system, "_running", False):
+                self._client._system.stop()
+        except Exception as e:
+            self._log.debug("ChromaDB client stop failed (harmless): %s", e)
+        try:
             self._client.clear_system_cache()
         except Exception as e:
-            self._log.warning("ChromaDB client close failed: %s", e)
+            self._log.debug("ChromaDB cache clear failed (harmless): %s", e)
 
     # ── Ingestion ─────────────────────────────────────────────────────────────
 

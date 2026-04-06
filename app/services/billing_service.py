@@ -5,7 +5,7 @@ Manages billing tiers, invoices, and UPI/QR code generation.
 
 Storage:
   system/billing.json  — billing entries keyed by slug
-  static/qr/           — QR PNG images, one per invoice
+  system/qr/           — QR PNG images, one per invoice
 
 FREE profiles are never written to billing.json.
 _get_entry() returns a default free BillingEntry for any missing slug.
@@ -22,7 +22,7 @@ from typing import Optional
 from urllib.parse import quote
 from uuid import uuid4
 
-from app.core.config import STATIC_DIR, settings
+from app.core.config import STATIC_DIR, SYSTEM_DIR, settings
 from app.core.logging_config import get_logger
 from app.models.billing_models import (
     BillingEntry, BillingStatusResponse, BillingTier, DonationRecord,
@@ -33,7 +33,7 @@ from app.storage.hf_sync import hf_sync
 logger = get_logger(__name__)
 
 _STORE   = settings.BILLING_FILE
-_QR_DIR  = STATIC_DIR / "qr"
+_QR_DIR  = SYSTEM_DIR / "qr"
 _LOCK    = threading.Lock()
 
 # Graceful degrade if Pillow / qrcode not installed
@@ -51,7 +51,7 @@ def _utcnow() -> str:
 
 def _generate_qr(record_id: str, upi_uri: str) -> str:
     """
-    Save a QR PNG to static/qr/{record_id}.png.
+    Save a QR PNG to system/qr/{record_id}.png.
     Returns the relative path string (e.g. "qr/don_abc.png").
     Exported at module level so payment_providers.py can import it.
     """

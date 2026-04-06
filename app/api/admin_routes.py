@@ -242,6 +242,12 @@ async def save_slides_htmx(request: Request, slug: str):
     return {"success": True}
 
 
+@router.post("/admin/manage/{slug}/slides/restore", response_class=HTMLResponse)
+async def htmx_restore_slides(slug: str):
+    ProfileFileStorage(slug).reset_slides()
+    return htmx_ok("Slides restored to defaults.")
+
+
 @router.get("/admin/manage/{slug}/docs", response_class=HTMLResponse)
 def htmx_docs_list(request: Request, slug: str):
     result = document_service.list_documents(slug)

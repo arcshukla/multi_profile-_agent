@@ -59,7 +59,7 @@ class _SessionFilter(logging.Filter):
 # ---------------------------------------------------------------------------
 # Shared formatter
 # ---------------------------------------------------------------------------
-_FMT = "%(asctime)s.%(msecs)03d  %(levelname)-8s  [%(session_id)-8s]  %(name)s  %(message)s"
+_FMT = "%(asctime)s.%(msecs)03d  %(levelname)-8s  [%(session_id)s]  %(name)s  %(filename)s:%(lineno)d  %(message)s"
 _DATEFMT = "%Y-%m-%d %H:%M:%S"
 
 _formatter = logging.Formatter(_FMT, datefmt=_DATEFMT)
@@ -163,6 +163,6 @@ def get_session_logger(base_logger: logging.Logger, session_id: str) -> logging.
     """
     class _SidAdapter(logging.LoggerAdapter):
         def process(self, msg, kwargs):
-            return f"[{self.extra['sid'][:8]}] {msg}", kwargs
+            return msg, kwargs
 
     return _SidAdapter(base_logger, {"sid": session_id})

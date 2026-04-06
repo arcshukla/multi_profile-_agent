@@ -62,7 +62,7 @@ class Invoice(BaseModel):
     due_date:     str            # "YYYY-MM-DD" (= period_end for Phase 1)
     status:       InvoiceStatus = InvoiceStatus.PENDING
     upi_uri:      str            # full upi:// deep-link
-    qr_path:      str            # relative to STATIC_DIR, e.g. "qr/inv_xxx.png"
+    qr_path:      str            # relative to SYSTEM_DIR, e.g. "qr/inv_xxx.png"
     created_at:   str            # ISO UTC
     paid_at:      Optional[str] = None
     confirmed_by: Optional[str] = None   # admin email

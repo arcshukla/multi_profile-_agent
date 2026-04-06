@@ -184,12 +184,13 @@ def appearance_page(request: Request, user: dict = Depends(require_owner)):
     fs        = ProfileFileStorage(slug)
     has_photo = fs.has_photo()
     return _r(request, "owner/appearance.html", {
-        "user":        user,
-        "slug":        slug,
-        "has_photo":   has_photo,
-        "photo_ts":    int(fs.photo_path.stat().st_mtime) if has_photo else 0,
-        "slides_data": fs.read_slides(),
-        "profile_css": fs.read_css(),
+        "user":                    user,
+        "slug":                    slug,
+        "has_photo":               has_photo,
+        "photo_ts":                int(fs.photo_path.stat().st_mtime) if has_photo else 0,
+        "slides_data":             fs.read_slides(),
+        "profile_css":             fs.read_css(),
+        "ai_theme_enabled":        settings.CAROUSEL_AI_THEME_ENABLED,
     })
 
 
@@ -215,8 +216,41 @@ async def save_slides(request: Request, user: dict = Depends(require_owner)):
             })
         i += 1
     slides = [s for s in slides if any(v for k, v in s.items() if k != "type")][:5]
-    ProfileFileStorage(_slug(user)).write_slides({"slides": slides})
+    fs = ProfileFileStorage(_slug(user))
+    data = fs.read_slides()
+    data["slides"] = slides
+    fs.write_slides(data)
     return htmx_ok("Slides saved.")
+
+
+@router.post("/appearance/slides/restore")
+async def restore_slides(user: dict = Depends(require_owner)):
+    ProfileFileStorage(_slug(user)).reset_slides()
+    return htmx_ok("Slides restored to defaults.")
+
+
+@router.post("/appearance/slides/generate-theme")
+async def generate_carousel_theme(mood: str = Form(...), user: dict = Depends(require_owner)):
+    """
+    AI-generates a colour theme from a mood description and saves it to slides.json.
+    Only available when settings.CAROUSEL_AI_THEME_ENABLED is True.
+    """
+    if not settings.CAROUSEL_AI_THEME_ENABLED:
+        return htmx_err("AI theme generation is currently disabled.")
+    from app.services.carousel_theme_service import generate_carousel_theme as _generate
+    try:
+        theme = _generate(mood)
+    except ValueError as e:
+        return htmx_err(str(e))
+    fs   = ProfileFileStorage(_slug(user))
+    data = fs.read_slides()
+    data["theme"] = theme
+    fs.write_slides(data)
+    import json as _json
+    return HTMLResponse(
+        content=_json.dumps(theme),
+        media_type="application/json",
+    )
 
 
 @router.post("/appearance/css")

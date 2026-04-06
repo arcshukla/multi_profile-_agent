@@ -172,6 +172,8 @@ class ProfileFileStorage:
              "body": "Ask me anything about career journey, experience, leadership, and expertise."},
             {"type": "standard", "title": "Explore professional story", "subtitle": "",
              "body": "Platforms built · Teams led · Problems solved · Impact delivered."},
+            {"type": "standard", "title": "Want to connect?", "subtitle": "",
+             "body": "Unanswered questions reach directly on my email. Leave your email below and I will follow up personally."},
         ]
     }
 
@@ -190,6 +192,11 @@ class ProfileFileStorage:
 
     def write_slides(self, data: dict) -> None:
         self.write_text(self.slides_path, json.dumps(data, ensure_ascii=False, indent=2))
+
+    def reset_slides(self) -> None:
+        """Delete slides.json so the next read returns the built-in defaults."""
+        if self.slides_path.exists():
+            self.slides_path.unlink()
 
     def read_css(self) -> str:
         """Return profile CSS, falling back to the default stylesheet."""

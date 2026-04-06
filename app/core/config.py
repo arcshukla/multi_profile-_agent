@@ -186,6 +186,10 @@ class Settings:
     SYSTEM_DIR_STR    = CfgField(None, str(SYSTEM_DIR),   label="System Dir",    section="Paths")
     LOGS_DIR_STR      = CfgField(None, str(LOGS_DIR),     label="Logs Dir",      section="Paths")
 
+    # ── Features (on/off switches) ────────────────────────────────────────────
+    CAROUSEL_AI_THEME_ENABLED = CfgField("CAROUSEL_AI_THEME_ENABLED", True,
+                                         label="Carousel AI Theme (owner portal)", cast=_bool, section="Features")
+
     # ── Admin display ─────────────────────────────────────────────────────────
 
     def get_config_display(self) -> list[dict]:

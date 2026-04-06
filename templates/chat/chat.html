@@ -3,7 +3,10 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Chat with {{ profile.name }}</title>
+  <title>Chat with {{ profile.name }} — ProfileSpark, AI Career Intelligence</title>
+  <link rel="icon" type="image/x-icon" href="/static/favicon.ico" />
+  <link rel="icon" type="image/svg+xml" href="/static/favicon.svg" />
+  <link rel="apple-touch-icon" href="/static/favicon.png" />
   <link rel="stylesheet" href="/static/tailwind.css">
   <!-- htmx 1.9.12 -->
   <script src="https://unpkg.com/htmx.org@1.9.12" crossorigin="anonymous"></script>
@@ -34,6 +37,9 @@
       --color-avatar-bg:        #eef2ff;
       --color-avatar-text:      #4f46e5;
       --color-carousel-bg:      #e8f5f1;
+      --color-carousel-title:   #0f172a;
+      --color-carousel-body:    #334155;
+      --color-carousel-nav:     #475569;
       --color-chat-border:      #c7d2fe;
       --color-followup-bg:      #eef2ff;
       --color-followup-border:  #c7d2fe;
@@ -49,17 +55,17 @@
     .arc-overflow    { overflow: hidden; }
     .arc-slides      { display: flex; transition: transform 0.35s ease; }
     .arc-slide       { min-width: 100%; padding: 2px 0 6px; }
-    .arc-title       { font-weight:600; font-size:0.9rem; color:#0f172a; margin-bottom:5px; line-height:1.4; }
-    .arc-creds       { font-size:0.78rem; color:#4a5568; margin-bottom:5px; line-height:1.5; }
+    .arc-title       { font-weight:600; font-size:0.9rem; color:var(--color-carousel-title); margin-bottom:5px; line-height:1.4; }
+    .arc-creds       { font-size:0.78rem; color:var(--color-carousel-body); margin-bottom:5px; line-height:1.5; }
     .arc-sep         { margin:0 5px; opacity:0.45; }
-    .arc-body        { font-size:0.82rem; color:#334155; line-height:1.6; }
+    .arc-body        { font-size:0.82rem; color:var(--color-carousel-body); line-height:1.6; }
     .arc-body-spaced { letter-spacing:0.02em; }
-    .arc-quote       { font-style:italic; font-size:0.85rem; color:#1e293b; line-height:1.7; margin-bottom:7px; }
-    .arc-attr        { font-size:0.75rem; color:#64748b; }
+    .arc-quote       { font-style:italic; font-size:0.85rem; color:var(--color-carousel-title); line-height:1.7; margin-bottom:7px; }
+    .arc-attr        { font-size:0.75rem; color:var(--color-carousel-body); }
     .arc-nav   { display:flex; align-items:center; justify-content:center; gap:10px; margin-top:14px; }
     .arc-btn   { width:28px; height:28px; border-radius:50%; border:1px solid #c8d5e0; background:white;
                  display:flex; align-items:center; justify-content:center; cursor:pointer;
-                 color:#475569; transition:background 0.15s, border-color 0.15s; flex-shrink:0; }
+                 color:var(--color-carousel-nav); transition:background 0.15s, border-color 0.15s; flex-shrink:0; }
     .arc-btn:hover  { background:#f1f5f9; border-color:#94a3b8; }
     .arc-dots  { display:flex; gap:6px; align-items:center; }
     .arc-dot   { width:7px; height:7px; border-radius:50%; background:#b8ccd8;
@@ -70,6 +76,18 @@
   <!-- 2. Profile CSS (overrides variables + any rule above) -->
   {% if profile_css %}
   <style>{{ profile_css | safe }}</style>
+  {% endif %}
+
+  <!-- 3. Carousel theme (saved from owner appearance editor — no LLM at chat time) -->
+  {% if slides_data and slides_data.theme %}
+  <style>
+    :root {
+      --color-carousel-bg:    {{ slides_data.theme.bg          | default('#e8f5f1') }};
+      --color-carousel-title: {{ slides_data.theme.title_color | default('#0f172a') }};
+      --color-carousel-body:  {{ slides_data.theme.body_color  | default('#334155') }};
+      --color-carousel-nav:   {{ slides_data.theme.nav_color   | default('#475569') }};
+    }
+  </style>
   {% endif %}
 
   <!-- 3. Structural styles — not intended to be overridden by profile -->

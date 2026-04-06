@@ -25,6 +25,10 @@ logger = get_logger(__name__)
 
 _GROQ_BASE_URL = "api.groq.com"
 
+# Module-level singleton — one httpx connection pool for the whole process.
+# LLMClient() returns this shared instance; no new pool is created per call.
+_instance: "LLMClient | None" = None
+
 
 class LLMClient:
     """
@@ -33,7 +37,16 @@ class LLMClient:
     All LLM calls go through this class. Business logic lives in services.
     """
 
+    def __new__(cls) -> "LLMClient":
+        global _instance
+        if _instance is None:
+            _instance = super().__new__(cls)
+            _instance._initialised = False
+        return _instance
+
     def __init__(self) -> None:
+        if self._initialised:
+            return
         self.client = OpenAI(
             base_url=settings.OPENROUTER_BASE_URL,
             api_key=settings.OPENROUTER_API_KEY,
@@ -42,6 +55,7 @@ class LLMClient:
         self._is_groq = _GROQ_BASE_URL in (settings.OPENROUTER_BASE_URL or "")
         if self._is_groq:
             logger.info("LLMClient: Groq backend detected — compatibility mode enabled")
+        self._initialised = True
 
     def chat(
         self,

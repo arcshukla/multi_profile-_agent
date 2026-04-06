@@ -13,6 +13,9 @@ RUN echo ">>> Installing system dependencies..." && \
 
 WORKDIR /app
 
+# Disable ChromaDB telemetry (avoids PostHog version-mismatch errors at runtime)
+ENV ANONYMIZED_TELEMETRY=False
+
 # Install Python dependencies first (layer caching)
 COPY requirements.txt .
 RUN echo ">>> Installing Python dependencies (this may take a while)..." && \
@@ -22,12 +25,15 @@ RUN echo ">>> Installing Python dependencies (this may take a while)..." && \
 # Copy application code
 COPY . .
 
-# Build Tailwind CSS from templates
+# Build Tailwind CSS from templates and copy static source assets
 RUN echo ">>> Building Tailwind CSS..." && \
     python -m pytailwindcss \
       -i app/static_src/tailwind.css \
       -o static/tailwind.css \
       --minify && \
+    cp app/static_src/favicon.ico static/favicon.ico && \
+    cp app/static_src/favicon.png static/favicon.png && \
+    cp app/static_src/favicon.svg static/favicon.svg && \
     echo ">>> Tailwind CSS built."
 
 # Create required directories (will be volume-mounted in production)

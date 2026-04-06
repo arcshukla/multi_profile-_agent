@@ -265,6 +265,12 @@
         <button type="button" class="admin-add-slide text-xs font-medium text-indigo-600 border border-indigo-200 bg-indigo-50 hover:bg-indigo-100 px-3 py-1.5 rounded-lg transition-colors"
           onclick="adminAddSlide(this)">+ Add Slide</button>
         <button type="submit" class="text-xs font-medium text-white bg-indigo-600 hover:bg-indigo-700 px-4 py-1.5 rounded-lg transition-colors">Save Slides</button>
+        <button type="button"
+          hx-post="/admin/manage/{{ profile.slug }}/slides/restore"
+          hx-confirm="Restore slides to defaults? This will overwrite current slides."
+          hx-swap="none"
+          hx-on::after-request="handleSave(event, 'Slides (restored)'); location.reload();"
+          class="text-xs font-medium text-gray-500 border border-gray-200 bg-white hover:bg-gray-50 px-3 py-1.5 rounded-lg transition-colors">Restore Defaults</button>
       </div>
     </form>
   </div>

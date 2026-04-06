@@ -71,23 +71,33 @@
   <!-- ── Carousel Slides ──────────────────────────────────────────────────────── -->
   <style>
     /* Carousel preview — mirrors chat.html arc-* styles exactly */
+    #preview-carousel-wrap {
+      --preview-title:      #0f172a;
+      --preview-body:       #334155;
+      --preview-nav:        #475569;
+      --preview-dot:        #b8ccd8;
+      --preview-dot-active: #4f46e5;
+      --preview-btn-bg:     #ffffff;
+      --preview-btn-border: #c8d5e0;
+      --preview-btn-icon:   #475569;
+    }
     .arc-wrap     { position:relative; }
     .arc-overflow { overflow:hidden; }
     .arc-slides   { display:flex; transition:transform 0.35s ease; }
     .arc-slide    { min-width:100%; padding:2px 0 6px; }
-    .arc-title    { font-weight:600; font-size:0.9rem; color:#0f172a; margin-bottom:5px; line-height:1.4; }
-    .arc-creds    { font-size:0.78rem; color:#4a5568; margin-bottom:5px; line-height:1.5; }
-    .arc-body     { font-size:0.82rem; color:#334155; line-height:1.6; }
+    .arc-title    { font-weight:600; font-size:0.9rem; color:var(--preview-title); margin-bottom:5px; line-height:1.4; }
+    .arc-creds    { font-size:0.78rem; color:var(--preview-body); margin-bottom:5px; line-height:1.5; }
+    .arc-body     { font-size:0.82rem; color:var(--preview-body); line-height:1.6; }
     .arc-body-spaced { letter-spacing:0.02em; }
-    .arc-quote    { font-style:italic; font-size:0.85rem; color:#1e293b; line-height:1.7; margin-bottom:7px; }
-    .arc-attr     { font-size:0.75rem; color:#64748b; }
+    .arc-quote    { font-style:italic; font-size:0.85rem; color:var(--preview-title); line-height:1.7; margin-bottom:7px; }
+    .arc-attr     { font-size:0.75rem; color:var(--preview-body); }
     .arc-nav      { display:flex; align-items:center; justify-content:center; gap:10px; margin-top:10px; }
-    .arc-btn      { width:28px; height:28px; border-radius:50%; border:1px solid #c8d5e0; background:white;
-                    display:flex; align-items:center; justify-content:center; color:#475569; flex-shrink:0; }
+    .arc-btn      { width:28px; height:28px; border-radius:50%; border:1px solid var(--preview-btn-border); background:var(--preview-btn-bg);
+                    display:flex; align-items:center; justify-content:center; color:var(--preview-btn-icon); flex-shrink:0; }
     .arc-dots     { display:flex; gap:6px; align-items:center; }
-    .arc-dot      { width:7px; height:7px; border-radius:50%; background:#b8ccd8;
+    .arc-dot      { width:7px; height:7px; border-radius:50%; background:var(--preview-dot);
                     transition:background 0.2s, transform 0.2s; }
-    .arc-dot.active { background:#4f46e5; transform:scale(1.25); }
+    .arc-dot.active { background:var(--preview-dot-active); transform:scale(1.25); }
   </style>
   <details class="bg-white rounded-xl border border-gray-200 overflow-hidden">
     <summary class="flex items-center justify-between px-5 py-3 cursor-pointer select-none list-none hover:bg-gray-50 transition-colors">
@@ -105,26 +115,89 @@
     </summary>
     <div class="border-t border-gray-100 p-5 space-y-4">
 
-      <!-- Live preview -->
+      {% if ai_theme_enabled %}
+      <!-- AI theme generator -->
+      <div class="bg-indigo-50 border border-indigo-100 rounded-xl p-4 space-y-3">
+        <p class="text-xs font-semibold text-indigo-700">✦ AI Theme Generator</p>
+        <p class="text-xs text-indigo-500">Describe a mood or style and AI will pick the colours for you.</p>
+        <div class="flex gap-2">
+          <input id="theme-mood-input" type="text" maxlength="200"
+            placeholder="e.g. professional, dark navy, modern executive"
+            class="flex-1 min-w-0 text-xs border border-indigo-200 rounded-lg px-3 py-2 bg-white
+                   focus:outline-none focus:ring-2 focus:ring-indigo-400"/>
+          <button id="theme-generate-btn" type="button" onclick="generateTheme()"
+            class="text-xs font-medium text-white bg-indigo-600 hover:bg-indigo-700
+                   px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap disabled:opacity-50">
+            Generate
+          </button>
+        </div>
+        <div class="flex flex-wrap gap-1.5">
+          <button type="button" onclick="document.getElementById('theme-mood-input').value='Professional, dark navy, executive'"
+            class="text-xs px-2 py-1 rounded-full border transition-colors"
+            style="color:#1e3a5f;background:#e8eef6;border-color:#b0c4de;">
+            Professional, dark navy, executive
+          </button>
+          <button type="button" onclick="document.getElementById('theme-mood-input').value='Warm, friendly, vibrant orange'"
+            class="text-xs px-2 py-1 rounded-full border transition-colors"
+            style="color:#92400e;background:#fff7ed;border-color:#fdba74;">
+            Warm, friendly, vibrant orange
+          </button>
+          <button type="button" onclick="document.getElementById('theme-mood-input').value='Minimalist, white and grey, modern'"
+            class="text-xs px-2 py-1 rounded-full border transition-colors"
+            style="color:#374151;background:#f9fafb;border-color:#d1d5db;">
+            Minimalist, white and grey, modern
+          </button>
+          <button type="button" onclick="document.getElementById('theme-mood-input').value='Creative, bold purple, energetic'"
+            class="text-xs px-2 py-1 rounded-full border transition-colors"
+            style="color:#5b21b6;background:#f5f3ff;border-color:#c4b5fd;">
+            Creative, bold purple, energetic
+          </button>
+          <button type="button" onclick="document.getElementById('theme-mood-input').value='Elegant, soft green, natural'"
+            class="text-xs px-2 py-1 rounded-full border transition-colors"
+            style="color:#14532d;background:#f0fdf4;border-color:#86efac;">
+            Elegant, soft green, natural
+          </button>
+          <button type="button" onclick="document.getElementById('theme-mood-input').value='Tech-forward, deep charcoal, clean'"
+            class="text-xs px-2 py-1 rounded-full border transition-colors"
+            style="color:#1f2937;background:#f3f4f6;border-color:#9ca3af;">
+            Tech-forward, deep charcoal, clean
+          </button>
+        </div>
+        <p id="theme-status" style="display:none" class="text-xs text-indigo-400"></p>
+        <!-- Theme swatch preview -->
+        <div id="theme-swatch" style="display:none" class="flex gap-2 flex-wrap items-center">
+          <span class="text-xs text-indigo-400">Preview:</span>
+          <span id="swatch-bg"    class="inline-block w-6 h-6 rounded border border-gray-200" title="Background"></span>
+          <span id="swatch-title" class="inline-block w-6 h-6 rounded border border-gray-200" title="Title text"></span>
+          <span id="swatch-body"  class="inline-block w-6 h-6 rounded border border-gray-200" title="Body text"></span>
+          <span id="swatch-nav"   class="inline-block w-6 h-6 rounded border border-gray-200" title="Nav buttons"></span>
+          <span class="text-xs text-gray-400 ml-1">Theme saved — reload chat to see it live.</span>
+        </div>
+      </div>
+      {% endif %}
+
+      <!-- Live carousel preview -->
       <div>
         <p class="text-xs font-medium text-gray-500 mb-2 flex items-center gap-1">
           <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
           </svg>
-          Preview (Slide 1)
-          <span class="text-gray-300 ml-1">— updates as you type</span>
+          Carousel Preview
+          <button type="button" onclick="updateSlidePreview()" class="ml-2 text-xs text-indigo-600 border border-indigo-200 bg-indigo-50 hover:bg-indigo-100 px-2 py-0.5 rounded-md transition-colors">Refresh Preview</button>
         </p>
-        <div class="rounded-xl px-5 py-4 border border-dashed border-gray-200" style="background:#e8f5f1;">
-          <p id="preview-title" class="arc-title"></p>
-          <p id="preview-creds" class="arc-creds"></p>
-          <p id="preview-body"  class="arc-body arc-body-spaced"></p>
-          <p id="preview-quote" class="arc-quote" style="display:none"></p>
-          <p id="preview-attr"  class="arc-attr"  style="display:none"></p>
+        <div id="preview-carousel-wrap" class="rounded-xl px-5 py-4 border border-dashed border-gray-200 arc-wrap" style="background: var(--preview-bg, #e8f5f1);">
+          <div class="arc-overflow">
+            <div id="preview-slides-track" class="arc-slides"></div>
+          </div>
           <div class="arc-nav">
-            <span class="arc-btn"><svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M8 2L4 6L8 10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></span>
+            <button type="button" id="preview-prev" class="arc-btn" onclick="previewGo(-1)">
+              <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M8 2L4 6L8 10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+            </button>
             <div id="preview-dots" class="arc-dots"></div>
-            <span class="arc-btn"><svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M4 2L8 6L4 10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></span>
+            <button type="button" id="preview-next" class="arc-btn" onclick="previewGo(1)">
+              <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M4 2L8 6L4 10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+            </button>
           </div>
         </div>
       </div>
@@ -155,29 +228,24 @@
             <div class="standard-fields space-y-2 {% if slide.type == 'quote' %}hidden{% endif %}">
               <input type="text" name="title_{{ loop.index0 }}" value="{{ slide.title or '' }}"
                 placeholder="Title — e.g. 25 years building at enterprise scale."
-                oninput="updateSlidePreview()"
                 class="w-full text-xs border border-gray-200 rounded-lg px-3 py-2 bg-white
                        focus:outline-none focus:ring-2 focus:ring-violet-300"/>
               <input type="text" name="subtitle_{{ loop.index0 }}" value="{{ slide.subtitle or '' }}"
                 placeholder="Credentials / metrics (optional)"
-                oninput="updateSlidePreview()"
                 class="w-full text-xs border border-gray-200 rounded-lg px-3 py-2 bg-white
                        focus:outline-none focus:ring-2 focus:ring-violet-300"/>
               <input type="text" name="body_{{ loop.index0 }}" value="{{ slide.body or '' }}"
                 placeholder="Supporting sentence (optional)"
-                oninput="updateSlidePreview()"
                 class="w-full text-xs border border-gray-200 rounded-lg px-3 py-2 bg-white
                        focus:outline-none focus:ring-2 focus:ring-violet-300"/>
             </div>
             <div class="quote-fields space-y-2 {% if slide.type != 'quote' %}hidden{% endif %}">
               <textarea name="quote_{{ loop.index0 }}" rows="2"
                 placeholder="Quote text — e.g. Archana is a solid and trustable leader…"
-                oninput="updateSlidePreview()"
                 class="w-full text-xs border border-gray-200 rounded-lg px-3 py-2 bg-white
                        focus:outline-none focus:ring-2 focus:ring-violet-300 resize-none">{{ slide.quote or '' }}</textarea>
               <input type="text" name="attribution_{{ loop.index0 }}" value="{{ slide.attribution or '' }}"
                 placeholder="Attribution — e.g. — Colleague, Instart Technologies"
-                oninput="updateSlidePreview()"
                 class="w-full text-xs border border-gray-200 rounded-lg px-3 py-2 bg-white
                        focus:outline-none focus:ring-2 focus:ring-violet-300"/>
             </div>
@@ -196,6 +264,14 @@
           <button type="submit"
             class="text-xs font-medium text-white bg-violet-600 hover:bg-violet-700 px-4 py-1.5 rounded-lg transition-colors">
             Save Slides
+          </button>
+          <button type="button"
+            hx-post="/owner/appearance/slides/restore"
+            hx-confirm="Restore slides to defaults? This will overwrite current slides."
+            hx-swap="none"
+            hx-on::after-request="location.reload();"
+            class="text-xs font-medium text-gray-500 border border-gray-200 bg-white hover:bg-gray-50 px-3 py-1.5 rounded-lg transition-colors">
+            Restore Defaults
           </button>
           <span id="slides-status" class="text-xs text-gray-400"></span>
         </div>
@@ -222,25 +298,20 @@
       </div>
       <div class="standard-fields space-y-2">
         <input type="text" name="title_SLIDE_IDX" placeholder="Title"
-          oninput="updateSlidePreview()"
           class="w-full text-xs border border-gray-200 rounded-lg px-3 py-2 bg-white
                  focus:outline-none focus:ring-2 focus:ring-violet-300"/>
         <input type="text" name="subtitle_SLIDE_IDX" placeholder="Credentials / metrics (optional)"
-          oninput="updateSlidePreview()"
           class="w-full text-xs border border-gray-200 rounded-lg px-3 py-2 bg-white
                  focus:outline-none focus:ring-2 focus:ring-violet-300"/>
         <input type="text" name="body_SLIDE_IDX" placeholder="Supporting sentence (optional)"
-          oninput="updateSlidePreview()"
           class="w-full text-xs border border-gray-200 rounded-lg px-3 py-2 bg-white
                  focus:outline-none focus:ring-2 focus:ring-violet-300"/>
       </div>
       <div class="quote-fields space-y-2 hidden">
         <textarea name="quote_SLIDE_IDX" rows="2" placeholder="Quote text…"
-          oninput="updateSlidePreview()"
           class="w-full text-xs border border-gray-200 rounded-lg px-3 py-2 bg-white
                  focus:outline-none focus:ring-2 focus:ring-violet-300 resize-none"></textarea>
         <input type="text" name="attribution_SLIDE_IDX" placeholder="Attribution"
-          oninput="updateSlidePreview()"
           class="w-full text-xs border border-gray-200 rounded-lg px-3 py-2 bg-white
                  focus:outline-none focus:ring-2 focus:ring-violet-300"/>
       </div>
@@ -398,6 +469,53 @@
 </div><!-- /space-y-3 -->
 
 <script>
+// ── AI Carousel Theme Generator ────────────────────────────────────────────────
+async function generateTheme() {
+  const input  = document.getElementById('theme-mood-input');
+  const btn    = document.getElementById('theme-generate-btn');
+  const status = document.getElementById('theme-status');
+  const swatch = document.getElementById('theme-swatch');
+  const mood   = input.value.trim();
+  if (!mood) { input.focus(); return; }
+
+  btn.disabled = true;
+  status.textContent = 'Generating…';
+  status.style.display = 'block';
+  status.classList.remove('text-red-400');
+  status.classList.add('text-indigo-400');
+  swatch.style.display = 'none';
+
+  try {
+    const form = new FormData();
+    form.append('mood', mood);
+    const csrfMatch = document.cookie.split(';').find(c => c.trim().startsWith('csrftoken='));
+    const csrfToken = csrfMatch ? csrfMatch.split('=')[1].trim() : '';
+    const resp = await fetch('/owner/appearance/slides/generate-theme', {
+      method: 'POST',
+      headers: { 'x-csrftoken': csrfToken },
+      body: form,
+    });
+    if (!resp.ok) {
+      const text = await resp.text();
+      throw new Error(text || resp.statusText);
+    }
+    const theme = await resp.json();
+    document.getElementById('swatch-bg').style.background    = theme.bg;
+    document.getElementById('swatch-title').style.background = theme.title_color;
+    document.getElementById('swatch-body').style.background  = theme.body_color;
+    document.getElementById('swatch-nav').style.background   = theme.nav_color;
+    applyPreviewTheme(theme);
+    updateSlidePreview();
+    swatch.style.display = 'flex';
+    status.textContent = 'Theme applied!';
+  } catch(e) {
+    status.textContent = 'Error: ' + e.message;
+    status.classList.replace('text-indigo-400', 'text-red-400');
+  } finally {
+    btn.disabled = false;
+  }
+}
+
 // ── Photo preview ──────────────────────────────────────────────────────────────
 function previewProfilePhoto(input) {
   const btn = document.getElementById('photo-upload-btn');
@@ -471,46 +589,91 @@ const CAROUSEL_JS = `
 })();
 `;
 
-function updateSlidePreview() {
-  const firstRow = document.querySelector('.slide-row');
-  const pTitle = document.getElementById('preview-title');
-  const pCreds = document.getElementById('preview-creds');
-  const pBody  = document.getElementById('preview-body');
-  const pQuote = document.getElementById('preview-quote');
-  const pAttr  = document.getElementById('preview-attr');
+// ── Live carousel preview ────────────────────────────────────────────────────
+let _previewIdx = 0;
 
-  function setText(el, val) {
-    el.textContent = val || '';
-    el.style.display = val ? '' : 'none';
-  }
-
-  if (!firstRow) {
-    [pTitle, pCreds, pBody, pQuote, pAttr].forEach(e => { if(e) e.style.display = 'none'; });
+function _buildSlideEl(row) {
+  const slide = document.createElement('div');
+  slide.className = 'arc-slide';
+  const typeRadio = row.querySelector('input[type=radio]:checked');
+  const type = typeRadio ? typeRadio.value : 'standard';
+  if (type === 'quote') {
+    const q = row.querySelector('textarea[name^="quote_"]')?.value || '';
+    const a = row.querySelector('input[name^="attribution_"]')?.value || '';
+    if (q) { const p = document.createElement('p'); p.className='arc-quote'; p.textContent=q; slide.appendChild(p); }
+    if (a) { const p = document.createElement('p'); p.className='arc-attr';  p.textContent=a; slide.appendChild(p); }
   } else {
-    const typeRadio = firstRow.querySelector('input[type=radio]:checked');
-    const type = typeRadio ? typeRadio.value : 'standard';
-    if (type === 'quote') {
-      [pTitle, pCreds, pBody].forEach(e => { if(e) e.style.display='none'; });
-      setText(pQuote, firstRow.querySelector('textarea[name^="quote_"]')?.value);
-      setText(pAttr,  firstRow.querySelector('input[name^="attribution_"]')?.value);
-    } else {
-      [pQuote, pAttr].forEach(e => { if(e) e.style.display='none'; });
-      setText(pTitle, firstRow.querySelector('input[name^="title_"]')?.value);
-      setText(pCreds, firstRow.querySelector('input[name^="subtitle_"]')?.value);
-      setText(pBody,  firstRow.querySelector('input[name^="body_"]')?.value);
-    }
+    const t  = row.querySelector('input[name^="title_"]')?.value || '';
+    const cr = row.querySelector('input[name^="subtitle_"]')?.value || '';
+    const b  = row.querySelector('input[name^="body_"]')?.value || '';
+    if (t)  { const p = document.createElement('p'); p.className='arc-title'; p.textContent=t;  slide.appendChild(p); }
+    if (cr) { const p = document.createElement('p'); p.className='arc-creds'; p.textContent=cr; slide.appendChild(p); }
+    if (b)  { const p = document.createElement('p'); p.className='arc-body arc-body-spaced'; p.textContent=b; slide.appendChild(p); }
   }
+  return slide;
+}
 
-  // Sync dot count in preview
-  const count = document.querySelectorAll('.slide-row').length;
+function updateSlidePreview() {
+  const track  = document.getElementById('preview-slides-track');
   const dotsEl = document.getElementById('preview-dots');
-  if (dotsEl) {
-    dotsEl.innerHTML = '';
-    for (let i = 0; i < count; i++) {
-      const d = document.createElement('span');
-      d.className = 'arc-dot' + (i === 0 ? ' active' : '');
-      dotsEl.appendChild(d);
-    }
+  if (!track) return;
+
+  const rows  = document.querySelectorAll('.slide-row');
+  const total = rows.length;
+  if (_previewIdx >= total) _previewIdx = 0;
+
+  // Rebuild track
+  track.innerHTML = '';
+  rows.forEach(row => track.appendChild(_buildSlideEl(row)));
+  track.style.transform = 'translateX(-' + _previewIdx * 100 + '%)';
+
+  // Rebuild dots
+  dotsEl.innerHTML = '';
+  for (let i = 0; i < total; i++) {
+    const d = document.createElement('span');
+    d.className = 'arc-dot' + (i === _previewIdx ? ' active' : '');
+    d.onclick = () => { _previewIdx = i; updateSlidePreview(); };
+    dotsEl.appendChild(d);
+  }
+}
+
+function previewGo(dir) {
+  const total = document.querySelectorAll('.slide-row').length;
+  _previewIdx = (_previewIdx + dir + total) % total;
+  updateSlidePreview();
+}
+
+function _bgIsDark(hex) {
+  const h = (hex || '#e8f5f1').replace('#', '');
+  const r = parseInt(h.slice(0,2),16)/255, g = parseInt(h.slice(2,4),16)/255, b = parseInt(h.slice(4,6),16)/255;
+  const lin = v => v <= 0.04045 ? v/12.92 : ((v+0.055)/1.055)**2.4;
+  return (0.2126*lin(r) + 0.7152*lin(g) + 0.0722*lin(b)) <= 0.18;
+}
+
+// Tracks the last applied theme so it can be re-applied when the accordion opens
+let _currentTheme = null;
+
+function applyPreviewTheme(theme) {
+  _currentTheme = theme;
+  const wrap = document.getElementById('preview-carousel-wrap');
+  if (!wrap) return;
+  const dark = _bgIsDark(theme.bg);
+  wrap.style.background = theme.bg || '#e8f5f1';
+  wrap.style.setProperty('--preview-title', theme.title_color || '#0f172a');
+  wrap.style.setProperty('--preview-body',  theme.body_color  || '#334155');
+  wrap.style.setProperty('--preview-nav',   theme.nav_color   || '#475569');
+  // Dots: active dot should be visible against the background
+  wrap.style.setProperty('--preview-dot-active', dark ? (theme.title_color || '#f1f5f9') : (theme.nav_color || '#475569'));
+  wrap.style.setProperty('--preview-dot',        dark ? 'rgba(255,255,255,0.25)' : '#b8ccd8');
+  // Nav buttons: on dark bg use semi-transparent button with light icon
+  if (dark) {
+    wrap.style.setProperty('--preview-btn-bg',     'rgba(255,255,255,0.12)');
+    wrap.style.setProperty('--preview-btn-border',  'rgba(255,255,255,0.25)');
+    wrap.style.setProperty('--preview-btn-icon',    theme.title_color || '#f1f5f9');
+  } else {
+    wrap.style.setProperty('--preview-btn-bg',     '#ffffff');
+    wrap.style.setProperty('--preview-btn-border',  '#c8d5e0');
+    wrap.style.setProperty('--preview-btn-icon',    theme.nav_color || '#475569');
   }
 }
 
@@ -550,17 +713,33 @@ function reindexSlides() {
       el.name = el.name.replace(/_\d+$/, '_' + i);
     });
   });
-  const addBtn = document.getElementById('add-slide-btn');
-  if (addBtn) addBtn.disabled = rows.length >= 5;
-  document.querySelectorAll('.remove-slide-btn').forEach(btn => {
-    btn.disabled = rows.length <= 1;
-    btn.classList.toggle('opacity-30', rows.length <= 1);
-  });
+  updateSlidePreview();
 }
 
 document.addEventListener('DOMContentLoaded', function() {
   reindexSlides();
   updateSlidePreview();
+  {% if slides_data and slides_data.theme %}
+  (function() {
+    const t = {{ slides_data.theme | tojson }};
+    applyPreviewTheme(t);
+    document.getElementById('swatch-bg').style.background    = t.bg;
+    document.getElementById('swatch-title').style.background = t.title_color;
+    document.getElementById('swatch-body').style.background  = t.body_color;
+    document.getElementById('swatch-nav').style.background   = t.nav_color;
+    document.getElementById('theme-swatch').style.display    = 'flex';
+    document.getElementById('theme-status').style.display    = 'block';
+    document.getElementById('theme-status').textContent      = 'Theme applied!';
+  })();
+  {% endif %}
+
+  // Re-apply theme when the carousel accordion is opened for the first time
+  document.getElementById('carousel-details').addEventListener('toggle', function() {
+    if (this.open) {
+      updateSlidePreview();
+      if (_currentTheme) applyPreviewTheme(_currentTheme);
+    }
+  });
 });
 
 // ── CSS picker helpers ─────────────────────────────────────────────────────────
